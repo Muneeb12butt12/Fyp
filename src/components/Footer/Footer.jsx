@@ -39,13 +39,13 @@ const FooterLinks = [
 
 const Footer = () => {
   return (
-    <div style={BannerImg} className="text-white">
+    <div style={BannerImg} className="text-white min-h-[400px]">
       <div className="container">
         <div data-aos="zoom-in" className="grid md:grid-cols-3 pb-44 pt-5">
-          {/* company details */}
+          {/* Company details */}
           <div className="py-8 px-4">
             <h1 className="sm:text-3xl text-xl font-bold sm:text-left text-justify mb-3 flex items-center gap-3">
-              <img src={footerLogo} alt="" className="max-w-[50px]" />
+              <img src={footerLogo} alt="Footer Logo" className="max-w-[50px]" />
               Shopsy
             </h1>
             <p>
@@ -91,28 +91,27 @@ const Footer = () => {
               </div>
             </div>
 
-            {/* social links */}
-
+            {/* Social Links */}
             <div>
               <div className="flex items-center gap-3 mt-6">
                 <a href="#">
-                  <FaInstagram className="text-3xl" />
+                  <FaInstagram className="text-3xl text-gray-200" />
                 </a>
                 <a href="#">
-                  <FaFacebook className="text-3xl" />
+                  <FaFacebook className="text-3xl text-gray-200" />
                 </a>
                 <a href="#">
-                  <FaLinkedin className="text-3xl" />
+                  <FaLinkedin className="text-3xl text-gray-200" />
                 </a>
               </div>
               <div className="mt-6">
                 <div className="flex items-center gap-3">
-                  <FaLocationArrow />
-                  <p>Noida, Uttar Pradesh</p>
+                  <FaLocationArrow className="text-gray-200" />
+                  <p className="text-gray-200">Noida, Uttar Pradesh</p>
                 </div>
                 <div className="flex items-center gap-3 mt-3">
-                  <FaMobileAlt />
-                  <p>+91 123456789</p>
+                  <FaMobileAlt className="text-gray-200" />
+                  <p className="text-gray-200">+91 123456789</p>
                 </div>
               </div>
             </div>
