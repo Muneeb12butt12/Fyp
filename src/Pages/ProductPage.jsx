@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const ProductPage = () => {
   return (
@@ -60,7 +61,13 @@ const ProductPage = () => {
 
         {/* Add to Cart Button */}
         <button className="w-full bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition duration-300">
-          ADD TO CART
+          <Link
+                      to="/SmartCart"
+                      className=" hover:underline"
+                    >
+                    ADD TO CART
+                    </Link>
+          
         </button>
       </div>
     </div>
