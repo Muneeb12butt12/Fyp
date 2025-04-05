@@ -1,11 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Footer from "../components/Footer/Footer";
 import Navbar from "../components/Navbar/Navbar";
 import AOS from "aos";
 import "aos/dist/aos.css";
 const SignIn = () => {
    const [orderPopup, setOrderPopup] = React.useState(false);
+   const Navigate= useNavigate();
     
       const handleOrderPopup = () => {
         setOrderPopup(!orderPopup);
@@ -19,8 +21,13 @@ const SignIn = () => {
         });
         AOS.refresh();
       }, []);
+      const handleLogin=()=>{
+        alert("Login successful!");
+        Navigate("/");
+      }
     
   return (
+    
     < >
     <Navbar />
     <div className="min-h-screen bg-white dark:bg-gray-900 dark:text-white duration-200 flex justify-center items-center ">
@@ -69,13 +76,14 @@ const SignIn = () => {
               <span className="ml-2 text-gray-700">Remember me</span>
             </label>
             <Link
-              to="/forgot-password"
+              to="/ForgetPassword"
               className="text-blue-600 hover:underline"
             >
               Forgot Password?
             </Link>
           </div>
           <button
+          onClick={handleLogin}
             type="submit"
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300"
           >
