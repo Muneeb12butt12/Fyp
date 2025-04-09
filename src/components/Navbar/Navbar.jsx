@@ -11,7 +11,7 @@ const Menu = [
   { id: 2, name: "Top Rated", link: "/AboutPage" },
   { id: 3, name: "Kids Wear", link: "/signin" },
   { id: 4, name: "Mens Wear", link: "/#" },
-  { id: 5, name: "Electronics", link: "/#" },
+  { id: 5, name: "Products", link: "/Product" },
 ];
 
 const DropdownLinks = [
