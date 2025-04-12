@@ -1,50 +1,29 @@
-import { useState } from 'react';
-import Img1 from "../assets/shirt/shirt.png";
-import Img2 from "../assets/shirt/shirt2.png";
-import Img3 from "../assets/shirt/shirt3.png";
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useCart } from '../context/CartContext';
 
-const ProductPage = () => {
-  const [selectedColor, setSelectedColor] = useState('Black');
-  const [selectedSize, setSelectedSize] = useState('S');
+const Test = () => {
+  const { addToCart } = useCart(); // ✅ Hook correctly inside the component
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const product = location.state?.productData;
+
+  useEffect(() => {
+    if (!product) {
+      navigate('/');
+    }
+  }, [product, navigate]);
+
+  const [selectedColor, setSelectedColor] = useState(product?.colors[0] || '');
+  const [selectedSize, setSelectedSize] = useState(product?.sizes[0] || '');
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
 
-  // Product data with local images
-  const product = {
-    title: 'Unisex Organic Oversized High Neck T-Shirt',
-    brand: 'Stanley/Stella',
-    price: 32.95,
-    colors: [
-      { 
-        name: 'Black', 
-        hex: '#000000',
-        images: [Img1, Img2, Img3] // Using your imported images
-      },
-      { 
-        name: 'White', 
-        hex: '#FFFFFF',
-        images: [Img1, Img2, Img3] // Reusing same images for demo
-      },
-      { 
-        name: 'Navy', 
-        hex: '#1F2A44',
-        images: [Img1, Img2, Img3] // Reusing same images for demo
-      },
-    ],
-    sizes: ['S', 'M', 'L', 'XL', '2XL'],
-    description: `Sustainable oversized high neck t-shirt made from 100% organic cotton. Stanley/Stella's signature relaxed fit with ribbed collar.`,
-    features: [
-      '100% organic cotton',
-      'Oversized fit',
-      'Ribbed high neck',
-      'Screen printed design',
-      'Responsibly sourced materials'
-    ]
-  };
+  const currentImages = [product?.img];
 
-  // Get current color's images
-  const currentColor = product.colors.find(color => color.name === selectedColor);
-  const currentImages = currentColor ? currentColor.images : product.colors[0].images;
+  if (!product) return null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -62,7 +41,7 @@ const ProductPage = () => {
               >
                 <img
                   src={img}
-                  alt={`${selectedColor} t-shirt view ${index + 1}`}
+                  alt={`${product.title} view ${index + 1}`}
                   className="w-full h-full object-cover"
                 />
               </button>
@@ -71,7 +50,7 @@ const ProductPage = () => {
           <div className="flex-1">
             <img
               src={currentImages[activeImage]}
-              alt={`${selectedColor} ${product.title}`}
+              alt={`${product.title}`}
               className="w-full h-full object-cover"
             />
           </div>
@@ -80,10 +59,9 @@ const ProductPage = () => {
         {/* Product Details */}
         <div>
           <div className="mb-4">
-            <span className="text-sm text-gray-600">{product.brand}</span>
             <h1 className="text-3xl font-bold">{product.title}</h1>
           </div>
-          
+
           <p className="text-2xl mb-6">${product.price}</p>
 
           {/* Color Selector */}
@@ -92,17 +70,15 @@ const ProductPage = () => {
             <div className="flex gap-2">
               {product.colors.map((color) => (
                 <button
-                  key={color.name}
+                  key={color}
                   onClick={() => {
-                    setSelectedColor(color.name);
-                    setActiveImage(0); // Reset to first image when color changes
+                    setSelectedColor(color);
+                    setActiveImage(0);
                   }}
                   className={`w-10 h-10 rounded-full border-2 ${
-                    selectedColor === color.name ? 'border-black' : 'border-gray-200'
+                    selectedColor === color ? 'border-black' : 'border-gray-200'
                   }`}
-                  style={{ backgroundColor: color.hex }}
-                  title={color.name}
-                  aria-label={`Select color ${color.name}`}
+                  style={{ backgroundColor: color }}
                 />
               ))}
             </div>
@@ -110,10 +86,7 @@ const ProductPage = () => {
 
           {/* Size Selector */}
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold">Size: {selectedSize}</h3>
-              <button className="text-sm underline">Size Guide</button>
-            </div>
+            <h3 className="text-lg font-semibold mb-3">Size: {selectedSize}</h3>
             <div className="flex flex-wrap gap-2">
               {product.sizes.map((size) => (
                 <button
@@ -124,7 +97,6 @@ const ProductPage = () => {
                       ? 'border-black bg-black text-white'
                       : 'border-gray-200 hover:border-gray-400'
                   }`}
-                  aria-label={`Select size ${size}`}
                 >
                   {size}
                 </button>
@@ -132,14 +104,13 @@ const ProductPage = () => {
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Quantity + Add to Cart */}
           <div className="mb-8 space-y-3">
             <div className="flex items-center gap-4">
               <div className="flex items-center border">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="px-4 py-2 border-r hover:bg-gray-100"
-                  aria-label="Decrease quantity"
                 >
                   -
                 </button>
@@ -147,33 +118,45 @@ const ProductPage = () => {
                 <button
                   onClick={() => setQuantity(quantity + 1)}
                   className="px-4 py-2 border-l hover:bg-gray-100"
-                  aria-label="Increase quantity"
                 >
                   +
                 </button>
               </div>
-              <button className="flex-1 bg-black text-white px-8 py-3 hover:bg-gray-800 transition-colors">
-                Add to Cart - ${(product.price * quantity).toFixed(2)}
-              </button>
+              <button 
+  onClick={() => {
+    addToCart(product, selectedColor, selectedSize, quantity);
+    navigate('/cart'); // 👈 Navigate to cart after adding
+  }}
+  className="flex-1 bg-black text-white px-8 py-3 hover:bg-gray-800 transition-colors"
+>
+  Add to Cart - ${(product.price * quantity).toFixed(2)}
+</button>
+
             </div>
-            
-            <button className="w-full border-2 border-black bg-white text-black px-8 py-3 hover:bg-gray-100 transition-colors">
-              Start Designing
-            </button>
+
+            <button 
+  onClick={() => {
+    navigate('/CustomizationPage', { 
+      state: { 
+        productData: product,
+        selectedColor,
+        selectedSize,
+        quantity
+      } 
+    });
+  }}
+  className="w-full border-2 border-black bg-white text-black px-8 py-3 hover:bg-gray-100 transition-colors"
+>
+  Start Designing
+</button>
           </div>
 
           {/* Product Description */}
           <div className="mb-8">
             <h3 className="text-lg font-semibold mb-3">Product Description</h3>
             <p className="mb-4">{product.description}</p>
-            <ul className="list-disc pl-6 space-y-1">
-              {product.features.map((feature, index) => (
-                <li key={index}>{feature}</li>
-              ))}
-            </ul>
           </div>
 
-          {/* Shipping Info */}
           <div className="border-t pt-4">
             <h3 className="text-lg font-semibold mb-2">Shipping & Returns</h3>
             <p className="text-sm">Standard shipping: 5-7 business days</p>
@@ -185,4 +168,4 @@ const ProductPage = () => {
   );
 };
 
-export default ProductPage;
+export default Test;

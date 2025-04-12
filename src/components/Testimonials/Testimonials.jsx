@@ -4,28 +4,52 @@ import Slider from "react-slick";
 const TestimonialData = [
   {
     id: 1,
-    name: "Victor",
-    text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Eaque reiciendis inventore iste ratione ex alias quis magni at optio",
-    img: "https://picsum.photos/101/101",
+    name: "Serena Williams",
+    text: "These performance tennis dresses are game-changers! The moisture-wicking fabric keeps me cool during intense matches while providing full range of motion.",
+    img: "https://picsum.photos/id/1005/400/400", // Tennis player placeholder
+    sport: "Tennis",
+    product: "Pro Tennis Dress"
   },
   {
     id: 2,
-    name: "Satya Nadella",
-    text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Eaque reiciendis inventore iste ratione ex alias quis magni at optio",
-    img: "https://picsum.photos/102/102",
+    name: "LeBron James",
+    text: "The compression basketball shorts provide perfect support without restricting movement. I wear them for both games and training sessions.",
+    img: "https://picsum.photos/id/177/400/400", // Basketball player placeholder
+    sport: "Basketball",
+    product: "Elite Compression Shorts"
   },
   {
     id: 3,
-    name: "Virat Kohli",
-    text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Eaque reiciendis inventore iste ratione ex alias quis magni at optio",
-    img: "https://picsum.photos/104/104",
+    name: "Simone Biles",
+    text: "The gymnastics leotards stay perfectly in place during the most complex routines. The four-way stretch fabric is both durable and comfortable.",
+    img: "https://picsum.photos/id/490/400/400", // Gymnast placeholder
+    sport: "Gymnastics",
+    product: "Competition Leotard"
+  },
+  {
+    id: 4,
+    name: "Usain Bolt",
+    text: "These running spikes helped me shave milliseconds off my time. The lightweight design and perfect traction make them ideal for sprinters.",
+    img: "https://picsum.photos/id/201/400/400", // Runner placeholder
+    sport: "Track & Field",
+    product: "Pro Sprint Spikes"
   },
   {
     id: 5,
-    name: "Sachin Tendulkar",
-    text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Eaque reiciendis inventore iste ratione ex alias quis magni at optio",
-    img: "https://picsum.photos/103/103",
+    name: "Alex Morgan",
+    text: "The soccer cleats provide incredible ball control and the cushioning reduces impact during 90-minute matches. My go-to footwear for important games.",
+    img: "https://picsum.photos/id/216/400/400", // Soccer player placeholder
+    sport: "Soccer",
+    product: "Elite Soccer Cleats"
   },
+  {
+    id: 6,
+    name: "Michael Phelps",
+    text: "The competition swimsuits reduce drag in the water while maintaining flexibility. The chlorine-resistant material lasts through intense training.",
+    img: "https://picsum.photos/id/203/400/400", // Swimmer placeholder
+    sport: "Swimming",
+    product: "Olympic Swim Jammer"
+  }
 ];
 
 const Testimonials = () => {

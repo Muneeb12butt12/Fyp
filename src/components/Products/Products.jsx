@@ -4,7 +4,8 @@ import Img2 from "../../assets/women/women2.jpg";
 import Img3 from "../../assets/women/women3.jpg";
 import Img4 from "../../assets/women/women4.jpg";
 import { FaStar } from "react-icons/fa6";
-
+import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 const ProductsData = [
   {
     id: 1,
@@ -49,7 +50,9 @@ const ProductsData = [
 ];
 
 const Products = () => {
+  const navigate = useNavigate();
   return (
+   
     <div className="mt-14 mb-12">
       <div className="container">
         {/* Header section */}
@@ -94,9 +97,12 @@ const Products = () => {
           </div>
           {/* view all button */}
           <div className="flex justify-center">
+          <Link to ="/Product">
             <button className="text-center mt-10 cursor-pointer bg-primary text-white py-1 px-5 rounded-md">
+          
               View All Button
             </button>
+            </Link>
           </div>
         </div>
       </div>

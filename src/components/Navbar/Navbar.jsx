@@ -5,13 +5,15 @@ import { FaCartShopping } from "react-icons/fa6";
 import { FaCaretDown, FaBars, FaTimes } from "react-icons/fa";
 import DarkMode from "./DarkMode";
 import { useNavigate } from "react-router-dom";
+import CartIcon from "../CartIcon";
+import CartSidebar from "../CartSidebar";
 
 const Menu = [
   { id: 1, name: "Home", link: "/" },
-  { id: 2, name: "Top Rated", link: "/AboutPage" },
+  { id: 2, name: "Top Rated", link: "/AboutUs" },
   { id: 3, name: "Kids Wear", link: "/signin" },
   { id: 4, name: "Mens Wear", link: "/#" },
-  { id: 5, name: "Electronics", link: "/#" },
+  { id: 5, name: "Products", link: "/Product" },
 ];
 
 const DropdownLinks = [
@@ -63,11 +65,14 @@ const Navbar = ({ handleOrderPopup }) => {
             {/* Hamburger Icon (Mobile) */}
             <div className="sm:hidden cursor-pointer" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
               {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
+              
             </div>
+            <CartIcon />
+            <CartSidebar />
           </div>
         </div>
       </div>
-
+     
       {/* Desktop Menu */}
       <div className="hidden sm:flex justify-center">
         <ul className="flex items-center gap-6">
