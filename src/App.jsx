@@ -1,5 +1,3 @@
-
-
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import Home from "./Pages/Home";
@@ -12,29 +10,35 @@ import Test from "./Pages/Test";
 import ForgotPassword from "./Pages/ForgotPassword.JSX";
 import VerifyCode from "./Pages/VerifyCode";
 import SetNewPassword from "./Pages/SetNewPassword";
-import SmartCart from "./Pages/SmartCart";
 import Product from "./Pages/Product";
 import AboutUs from "./Pages/AboutUs";
+import Cart from "./Pages/Cart";
+import { CartProvider } from "./context/CartContext";
+import CustomizationPage from "./Pages/CustomizationPage";
 
 const App = () => {
   return (
-    
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/signin" element={<SignIn />} />
-      <Route path="/signup" element={<SignUp />} />
-      <Route path="/productpage" element={<ProductPage />} />
-      <Route path="/checkout" element={<Checkout />} />
-      <Route path="/product/:id" element={<Test />} /> 
-      <Route path="/test2" element={<Test2 />} />
-      <Route path="/forgotpassword" element={<ForgotPassword />} />
-      <Route path="/verifycode" element={<VerifyCode />} /> 
-      <Route path="/set-password" element={<SetNewPassword />} />
-      <Route path="/smartcart" element={<SmartCart />} />
-      <Route path="/product" element={<Product />} /> 
-      <Route path="/AboutUs" element={<AboutUs />}/>
-    </Routes>
+    <CartProvider>
      
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/signin" element={<SignIn />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/productpage" element={<ProductPage />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/product/:id" element={<Test />} />
+          <Route path="/test2" element={<Test2 />} />
+          <Route path="/forgotpassword" element={<ForgotPassword />} />
+          <Route path="/verifycode" element={<VerifyCode />} />
+          <Route path="/set-password" element={<SetNewPassword />} />
+          <Route path="/product" element={<Product />} />
+          <Route path="/AboutUs" element={<AboutUs />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/CustomizationPage" element={<CustomizationPage />} />
+        </Routes>
+       
+      
+    </CartProvider>
   );
 };
 

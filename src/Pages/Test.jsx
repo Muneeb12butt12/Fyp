@@ -1,7 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useCart } from '../context/CartContext';
 
 const Test = () => {
+  const { addToCart } = useCart(); // ✅ Hook correctly inside the component
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -9,7 +12,6 @@ const Test = () => {
 
   useEffect(() => {
     if (!product) {
-      // Redirect back if no product data is found
       navigate('/');
     }
   }, [product, navigate]);
@@ -120,14 +122,33 @@ const Test = () => {
                   +
                 </button>
               </div>
-              <button className="flex-1 bg-black text-white px-8 py-3 hover:bg-gray-800 transition-colors">
-                Add to Cart - ${(product.price * quantity).toFixed(2)}
-              </button>
+              <button 
+  onClick={() => {
+    addToCart(product, selectedColor, selectedSize, quantity);
+    navigate('/cart'); // 👈 Navigate to cart after adding
+  }}
+  className="flex-1 bg-black text-white px-8 py-3 hover:bg-gray-800 transition-colors"
+>
+  Add to Cart - ${(product.price * quantity).toFixed(2)}
+</button>
+
             </div>
 
-            <button className="w-full border-2 border-black bg-white text-black px-8 py-3 hover:bg-gray-100 transition-colors">
-              Start Designing
-            </button>
+            <button 
+  onClick={() => {
+    navigate('/CustomizationPage', { 
+      state: { 
+        productData: product,
+        selectedColor,
+        selectedSize,
+        quantity
+      } 
+    });
+  }}
+  className="w-full border-2 border-black bg-white text-black px-8 py-3 hover:bg-gray-100 transition-colors"
+>
+  Start Designing
+</button>
           </div>
 
           {/* Product Description */}

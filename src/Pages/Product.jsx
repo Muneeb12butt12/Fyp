@@ -8,10 +8,11 @@ import Img3 from "../assets/shirt/shirt3.png";
 import Img4 from "../assets/shirt/shirt4.jpg";
 import Img5 from "../assets/shirt/shirt5.jpg";
 import Img6 from "../assets/shirt/shirt6.png";
+import Img7 from "../assets/shirt/Shirt7.png";
 import { FaStar } from "react-icons/fa";
 import AOS from "aos";
 import "aos/dist/aos.css";
-const images = [Img1, Img2, Img3, Img4, Img5, Img6];
+const images = [Img1, Img2, Img3, Img4, Img5, Img6,Img7];
 
 const ProductsData = Array.from({ length: 30 }, (_, i) => ({
   id: i + 1,

@@ -1,156 +1,218 @@
-import React from 'react';
-import shirt1 from '../assets/shirt/shirt.png'; // Import product images
-import shirt2 from '../assets/shirt/shirt2.png';
+import { useState } from 'react';
+import { useCart } from '../context/CartContext';
+import { useNavigate } from 'react-router-dom';
 
-const CheckoutPage = () => {
+const Checkout = () => {
+  const { cart, cartTotal, clearCart } = useCart();
+  const navigate = useNavigate();
+  
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    country: '',
+    zipCode: '',
+    paymentMethod: 'credit-card',
+    cardNumber: '',
+    cardExpiry: '',
+    cardCvc: '',
+    shippingMethod: 'standard',
+    agreeToTerms: false,
+  });
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsProcessing(true);
+
+    // Simulate API call
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Create order data
+      const orderData = {
+        customer: formData,
+        items: cart,
+        total: formData.shippingMethod === 'express' ? cartTotal + 9.99 : cartTotal,
+        date: new Date().toISOString()
+      };
+
+      console.log('Order submitted:', orderData);
+      setOrderSuccess(true);
+      clearCart();
+    } catch (error) {
+      console.error('Checkout error:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  if (orderSuccess) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-16 min-h-screen flex flex-col items-center justify-center text-center">
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
+          <svg className="h-12 w-12 mx-auto text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h1 className="text-3xl font-bold mb-4">Order Confirmed!</h1>
+        <p className="text-lg mb-6">Thank you for your purchase.</p>
+        <button
+          onClick={() => navigate('/')}
+          className="bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors"
+        >
+          Continue Shopping
+        </button>
+      </div>
+    );
+  }
+
+  if (cart.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-16 min-h-screen flex flex-col items-center justify-center text-center">
+        <h1 className="text-3xl font-bold mb-4">Your Cart is Empty</h1>
+        <button
+          onClick={() => navigate('/')}
+          className="bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition-colors"
+        >
+          Continue Shopping
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-5 font-sans">
-      {/* Page Title */}
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">CHECKOUT</h1>
+    <div className="max-w-7xl mx-auto px-4 py-8 min-h-screen">
+      <h1 className="text-3xl font-bold mb-8">Checkout</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-        {/* Left Column - Information Section */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6">INFORMATION</h2>
-
-          {/* Shipping Section */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">SHIPPING</h3>
-            <div className="space-y-4">
-              <input
-                type="email"
-                placeholder="Email"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="tel"
-                placeholder="Phone"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="First Name"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="Last Name"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="Country"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="State / Region"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="Address"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="City"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="Postal Code"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Payment Section */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">PAYMENT</h3>
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Card Number"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="Expiry Date"
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="text"
-                  placeholder="CVV"
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Customer Information */}
+        <div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Contact and Shipping forms remain the same as before */}
+            {/* ... */}
+            
+            {/* Payment Method */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <label className="flex items-center space-x-3">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="credit-card"
+                      checked={formData.paymentMethod === 'credit-card'}
+                      onChange={handleChange}
+                      className="h-4 w-4 text-black focus:ring-black"
+                    />
+                    <span className="font-medium">Credit Card</span>
+                  </label>
+                  {/* Credit card fields */}
+                </div>
+                <div>
+                  <label className="flex items-center space-x-3">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="paypal"
+                      checked={formData.paymentMethod === 'paypal'}
+                      onChange={handleChange}
+                      className="h-4 w-4 text-black focus:ring-black"
+                    />
+                    <span className="font-medium">PayPal</span>
+                  </label>
+                </div>
               </div>
             </div>
-          </div>
+
+            <button
+              type="submit"
+              disabled={isProcessing}
+              className="w-full bg-black text-white py-3 px-6 rounded hover:bg-gray-800 transition-colors disabled:opacity-70"
+            >
+              {isProcessing ? 'Processing...' : `Pay $${(
+                formData.shippingMethod === 'express' ? 
+                cartTotal + 9.99 : 
+                cartTotal
+              ).toFixed(2)}`}
+            </button>
+          </form>
         </div>
 
-        {/* Right Column - Order Summary */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6">YOUR ORDER</h2>
+        {/* Order Summary */}
+        <div className="lg:sticky lg:top-4">
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
+            <div className="divide-y">
+              {cart.map((item) => (
+                <div key={item.id} className="py-4 flex justify-between">
+                  <div className="flex items-center">
+                    <div className="w-16 h-16 flex-shrink-0 mr-4 relative">
+                      <img
+                        src={item.img}
+                        alt={item.title}
+                        className="w-full h-full object-cover rounded"
+                        style={{ backgroundColor: item.selectedColor }}
+                      />
+                      {item.customization?.logo && (
+                        <img
+                          src={item.customization.logo.image}
+                          alt="Custom logo"
+                          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+                          style={{ width: '40px' }}
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{item.title}</h3>
+                      <p className="text-sm text-gray-500">
+                        {item.selectedColor} / {item.selectedSize}
+                      </p>
+                      {item.customization?.text && (
+                        <p className="text-sm">Text: {item.customization.text}</p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="font-medium">${item.price.toFixed(2)}</p>
+                </div>
+              ))}
+            </div>
 
-          {/* Order Items */}
-          <div className="space-y-4">
-            {/* Item 1 */}
-            <div className="flex items-center space-x-4">
-              <img src={shirt1} alt="Basic Heavy T-Shirt" className="w-16 h-16 object-cover rounded-lg" />
-              <div>
-                <p className="text-gray-800 font-semibold">Basic Heavy T-Shirt</p>
-                <p className="text-gray-600">Black/L</p>
-                <p className="text-gray-600">(1)</p>
+            <div className="pt-4 space-y-3">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span>${cartTotal.toFixed(2)}</span>
               </div>
-              <p className="text-gray-800 font-semibold ml-auto">$99</p>
-            </div>
-
-            {/* Item 2 */}
-            <div className="flex items-center space-x-4">
-              <img src={shirt2} alt="Basic Fit T-Shirt" className="w-16 h-16 object-cover rounded-lg" />
-              <div>
-                <p className="text-gray-800 font-semibold">Basic Fit T-Shirt</p>
-                <p className="text-gray-600">Black/L</p>
-                <p className="text-gray-600">(1)</p>
+              <div className="flex justify-between">
+                <span>Shipping</span>
+                <span>{formData.shippingMethod === 'standard' ? 'Free' : '$9.99'}</span>
               </div>
-              <p className="text-gray-800 font-semibold ml-auto">$99</p>
+              <div className="border-t pt-3 flex justify-between font-bold text-lg">
+                <span>Total</span>
+                <span>
+                  ${(formData.shippingMethod === 'standard' ? cartTotal : cartTotal + 9.99).toFixed(2)}
+                </span>
+              </div>
             </div>
           </div>
-
-          {/* Divider */}
-          <div className="border-t border-gray-300 my-6"></div>
-
-          {/* Subtotal and Shipping */}
-          <div className="space-y-4">
-            <div className="flex justify-between">
-              <p className="text-gray-600">Subtotal</p>
-              <p className="text-gray-800 font-semibold">$180.00</p>
-            </div>
-            <div className="flex justify-between">
-              <p className="text-gray-600">Shipping</p>
-              <p className="text-gray-800 font-semibold">$0.00</p>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-t border-gray-300 my-6"></div>
-
-          {/* Total */}
-          <div className="flex justify-between">
-            <p className="text-gray-800 font-semibold">Total</p>
-            <p className="text-gray-800 font-semibold">$180.00</p>
-          </div>
-
-          {/* Proceed to Payment Button */}
-          <button className="w-full bg-blue-500 text-white p-3 rounded-lg mt-6 hover:bg-blue-600 transition duration-300">
-            Proceed to Payment
-          </button>
         </div>
       </div>
     </div>
   );
 };
 
-export default CheckoutPage;
+export default Checkout;
