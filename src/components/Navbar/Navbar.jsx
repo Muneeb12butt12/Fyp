@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Logo from "../../assets/logo.png";
-import { IoMdSearch } from "react-icons/io";
+import { IoMdSearch, IoMdPerson } from "react-icons/io";
 import { FaCartShopping } from "react-icons/fa6";
 import { FaCaretDown, FaBars, FaTimes } from "react-icons/fa";
 import DarkMode from "./DarkMode";
@@ -10,9 +10,9 @@ import CartSidebar from "../CartSidebar";
 
 const Menu = [
   { id: 1, name: "Home", link: "/" },
-  { id: 2, name: "Top Rated", link: "/AboutUs" },
-  { id: 3, name: "Kids Wear", link: "/signin" },
-  { id: 4, name: "Mens Wear", link: "/#" },
+  { id: 2, name: "About Us", link: "/AboutUs" },
+  { id: 3, name: "Blog", link: "/BlogPage" },
+  { id: 4, name: "", link: "/#" },
   { id: 5, name: "Products", link: "/Product" },
 ];
 
@@ -30,13 +30,18 @@ const Navbar = ({ handleOrderPopup }) => {
   return (
     <div className="shadow-md bg-white dark:bg-gray-900 dark:text-white duration-200 relative z-40">
       {/* Upper Navbar */}
-      <div className="bg-primary/40 py-2">
+      <div className="bg-primary/40 py-3">
         <div className="container mx-auto px-4 flex justify-between items-center">
           {/* Logo */}
-          <a href="#" className="font-bold text-2xl sm:text-3xl flex gap-2 items-center">
+          <div 
+            onClick={() => navigate("/")}
+            className="font-bold text-2xl sm:text-3xl flex gap-2 items-center cursor-pointer"
+          >
             <img src={Logo} alt="Logo" className="w-10" />
-            SportWearXpress
-          </a>
+            <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              SportWearXpress
+            </span>
+          </div>
 
           {/* Actions */}
           <div className="flex items-center gap-4">
@@ -44,41 +49,70 @@ const Navbar = ({ handleOrderPopup }) => {
             <div className="relative group hidden sm:block">
               <input
                 type="text"
-                placeholder="search"
-                className="w-[200px] group-hover:w-[300px] transition-all duration-300 rounded-full border border-gray-300 px-3 py-1 focus:outline-none dark:border-gray-500 dark:bg-gray-800"
+                placeholder="Search sportswear..."
+                className="w-[200px] group-hover:w-[300px] transition-all duration-300 rounded-full border border-gray-300 px-4 py-2 focus:outline-none dark:border-gray-500 dark:bg-gray-800"
               />
-              <IoMdSearch className="text-gray-500 group-hover:text-primary absolute top-1/2 -translate-y-1/2 right-3" />
+              <IoMdSearch className="text-gray-500 group-hover:text-primary absolute top-1/2 -translate-y-1/2 right-4" />
             </div>
+
+            {/* Sign In */}
+            <button 
+              onClick={() => navigate("/signin")}
+              className="hidden sm:flex items-center gap-1 text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors"
+            >
+              <IoMdPerson className="text-xl" />
+              <span className="text-sm font-medium">Sign In</span>
+            </button>
 
             {/* Order Button */}
             <button
               onClick={handleOrderPopup}
-              className="bg-gradient-to-r from-primary to-secondary text-white py-1 px-4 rounded-full flex items-center gap-2 group"
+              className="hidden sm:flex bg-gradient-to-r from-primary to-secondary text-white py-2 px-4 rounded-full items-center gap-2 group hover:shadow-lg transition-all"
             >
-              <span className="group-hover:block hidden">Order</span>
-              <FaCartShopping className="text-xl" />
+              <span className="group-hover:block hidden text-sm">Order</span>
+              <FaCartShopping className="text-lg" />
             </button>
 
             {/* Dark Mode */}
-            <DarkMode />
-
-            {/* Hamburger Icon (Mobile) */}
-            <div className="sm:hidden cursor-pointer" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-              {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
-              
+            <div className="hidden sm:block">
+              <DarkMode />
             </div>
-            <CartIcon />
-            <CartSidebar />
+
+            {/* Mobile Icons */}
+            <div className="flex items-center gap-4 sm:hidden">
+              <button 
+                onClick={() => navigate("/signin")}
+                className="text-gray-700 dark:text-gray-300"
+              >
+                <IoMdPerson className="text-xl" />
+              </button>
+              <CartIcon />
+              <div 
+                className="cursor-pointer" 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
+                {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
+              </div>
+            </div>
+            
+            {/* Desktop Cart */}
+            <div className="hidden sm:block">
+              <CartIcon />
+            </div>
           </div>
+          <CartSidebar />
         </div>
       </div>
      
       {/* Desktop Menu */}
-      <div className="hidden sm:flex justify-center">
+      <div className="hidden sm:flex justify-center bg-white dark:bg-gray-800 shadow-sm">
         <ul className="flex items-center gap-6">
           {Menu.map((data) => (
             <li key={data.id}>
-              <a href={data.link} className="px-4 py-2 hover:text-primary duration-200">
+              <a 
+                href={data.link} 
+                className="px-4 py-3 hover:text-primary duration-200 font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+              >
                 {data.name}
               </a>
             </li>
@@ -86,15 +120,18 @@ const Navbar = ({ handleOrderPopup }) => {
 
           {/* Desktop Dropdown */}
           <li className="group relative cursor-pointer">
-            <a href="#" className="flex items-center gap-[4px] py-2">
-              Trending Products
-              <FaCaretDown className="transition-all group-hover:rotate-180" />
+            <a href="#" className="flex items-center gap-[4px] py-3 px-4 font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+              Trending
+              <FaCaretDown className="transition-all duration-200 group-hover:rotate-180" />
             </a>
-            <div className="absolute hidden group-hover:block bg-white dark:bg-gray-800 text-black dark:text-white rounded-md shadow-md mt-2 p-2 w-48 z-50">
+            <div className="absolute hidden group-hover:block bg-white dark:bg-gray-700 text-black dark:text-white rounded-md shadow-lg mt-1 p-2 w-48 z-50 border border-gray-100 dark:border-gray-600">
               <ul>
                 {DropdownLinks.map((item) => (
                   <li key={item.id}>
-                    <a href={item.link} className="block p-2 rounded hover:bg-primary/20 dark:hover:bg-gray-700">
+                    <a 
+                      href={item.link} 
+                      className="block p-2 rounded hover:bg-primary/10 dark:hover:bg-gray-600 transition-colors"
+                    >
                       {item.name}
                     </a>
                   </li>
@@ -107,11 +144,14 @@ const Navbar = ({ handleOrderPopup }) => {
 
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
-        <div className="sm:hidden bg-white dark:bg-gray-800 px-4 py-4">
-          <ul className="flex flex-col gap-4">
+        <div className="sm:hidden bg-white dark:bg-gray-800 px-4 py-4 shadow-inner">
+          <ul className="flex flex-col gap-2">
             {Menu.map((data) => (
               <li key={data.id}>
-                <a href={data.link} className="block py-1 text-lg hover:text-primary">
+                <a 
+                  href={data.link} 
+                  className="block py-3 px-2 text-lg hover:text-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                >
                   {data.name}
                 </a>
               </li>
@@ -121,16 +161,19 @@ const Navbar = ({ handleOrderPopup }) => {
             <li>
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center justify-between w-full text-lg"
+                className="flex items-center justify-between w-full py-3 px-2 text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
               >
-                <span>Trending Products</span>
+                <span>Trending</span>
                 <FaCaretDown className={`transition-transform ${showDropdown ? "rotate-180" : ""}`} />
               </button>
               {showDropdown && (
-                <ul className="mt-2 pl-4 text-base">
+                <ul className="mt-1 pl-4 text-base">
                   {DropdownLinks.map((item) => (
                     <li key={item.id}>
-                      <a href={item.link} className="block py-1 hover:text-primary">
+                      <a 
+                        href={item.link} 
+                        className="block py-2 px-2 hover:text-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                      >
                         {item.name}
                       </a>
                     </li>

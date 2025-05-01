@@ -1,6 +1,7 @@
 import React from "react";
 import footerLogo from "../../assets/logo.png";
 import Banner from "../../assets/website/footer-pattern.jpg";
+import { useNavigate } from "react-router-dom";
 import {
   FaFacebook,
   FaInstagram,
@@ -21,11 +22,11 @@ const BannerImg = {
 const FooterLinks = [
   {
     title: "Home",
-    link: "/#",
+    link: "/Home",
   },
   {
     title: "About",
-    link: "/#about",
+    link: "/AboutUs",
   },
   {
     title: "Contact",
@@ -38,6 +39,8 @@ const FooterLinks = [
 ];
 
 const Footer = () => {
+    const navigate = useNavigate();
+  
   return (
     <div style={BannerImg} className="text-white min-h-[400px]">
       <div className="container">
@@ -49,8 +52,7 @@ const Footer = () => {
               SportWearXpress
             </h1>
             <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Cum in
-              beatae ea recusandae blanditiis veritatis.
+            A web application for creating personalized t-shirts with custom colors, logos, and text. Users can drag and position logos, add custom text with styling options, and see real-time previews before checkout.
             </p>
           </div>
 
@@ -107,11 +109,11 @@ const Footer = () => {
               <div className="mt-6">
                 <div className="flex items-center gap-3">
                   <FaLocationArrow className="text-gray-200" />
-                  <p className="text-gray-200">Noida, Uttar Pradesh</p>
+                  <p className="text-gray-200">Muneeb, Lahore</p>
                 </div>
                 <div className="flex items-center gap-3 mt-3">
                   <FaMobileAlt className="text-gray-200" />
-                  <p className="text-gray-200">+91 123456789</p>
+                  <p className="text-gray-200">+92 3064599489</p>
                 </div>
               </div>
             </div>

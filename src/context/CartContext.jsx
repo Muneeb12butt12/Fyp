@@ -20,17 +20,17 @@ export const CartProvider = ({ children }) => {
   }, [cart]);
 
   const calculateCustomizedPrice = (basePrice, customization) => {
-    let price = basePrice;
+    let price = parseFloat(basePrice);
     
     // Add logo price if selected
     if (customization?.logo) {
-      price += customization.logo.price;
+      price += parseFloat(customization.logo.price) || 0;
     }
     
     // Add size premium
-    if (customization?.logoSize === 'medium') price += 1;
-    else if (customization?.logoSize === 'large') price += 2;
-    else if (customization?.logoSize === 'xlarge') price += 3;
+    if (customization?.size === 'medium') price += 1;
+    else if (customization?.size === 'large') price += 2;
+    else if (customization?.size === 'xlarge') price += 3;
     
     // Add text premium if custom text exists
     if (customization?.text && customization.text.trim() !== '') {
@@ -62,7 +62,7 @@ export const CartProvider = ({ children }) => {
             ? { 
                 ...item, 
                 quantity: item.quantity + quantity,
-                price: calculateCustomizedPrice(product.price, customization) * (item.quantity + quantity)
+                price: calculateCustomizedPrice(item.basePrice, customization) * (item.quantity + quantity)
               }
             : item
         );
@@ -83,6 +83,12 @@ export const CartProvider = ({ children }) => {
       }
     });
     setIsCartOpen(true);
+  };
+
+  // Specifically for adding customized products
+  const addCustomizedToCart = (customizedProduct) => {
+    const { selectedColor, selectedSize, quantity, customization } = customizedProduct;
+    addToCart(customizedProduct, selectedColor, selectedSize, quantity, customization);
   };
 
   const removeFromCart = (itemId, selectedColor, selectedSize, customization = null) => {
@@ -141,17 +147,18 @@ export const CartProvider = ({ children }) => {
   };
 
   const cartTotal = cart.reduce(
-    (total, item) => total + item.price,
+    (total, item) => total + parseFloat(item.price || 0),
     0
   );
 
-  const cartItemCount = cart.reduce((count, item) => count + item.quantity, 0);
+  const cartItemCount = cart.reduce((count, item) => count + (item.quantity || 0), 0);
 
   return (
     <CartContext.Provider
       value={{
         cart,
         addToCart,
+        addCustomizedToCart, // Added this function
         removeFromCart,
         updateQuantity,
         updateCartItemCustomization,

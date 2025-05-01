@@ -2,10 +2,16 @@ import React from 'react';
 import { FaTshirt, FaRunning, FaBrain, FaUsers, FaRegLightbulb } from 'react-icons/fa';
 import { IoMdColorPalette } from 'react-icons/io';
 import { RiTeamFill } from 'react-icons/ri';
+import Navbar from '../components/Navbar/Navbar';
+import NavBa from '../components/NavBa';
 
 const AboutUs = () => {
+  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+  
+     
+    <div className="min-h-screen bg-white dark:bg-gray-900 dark:text-white duration-200 ">
+    <NavBa/>
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
@@ -241,7 +247,7 @@ const AboutUs = () => {
             Experience the future of athletic apparel with our AI-powered customization platform.
           </p>
           <a
-            href="/customize"
+            href="/Product"
             className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 sm:w-auto"
           >
             Start Designing Now
@@ -249,6 +255,7 @@ const AboutUs = () => {
         </div>
       </div>
     </div>
+    
   );
 };
 
