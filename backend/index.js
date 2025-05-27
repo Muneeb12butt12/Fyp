@@ -1,131 +1,73 @@
-import 'dotenv/config'; // MUST be first import
 import express from 'express';
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 import cors from 'cors';
-import helmet from 'helmet'; // Security middleware
-import rateLimit from 'express-rate-limit'; // Rate limiting
 import authRoutes from './routes/auth.js';
-import { logRequests, logErrors } from './middleware/logging.js'; // Custom logging
 
-const app = express();
+dotenv.config();
 
-// 🔒 Environment Validation
-const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI', 'NODE_ENV'];
-const missingVars = requiredEnvVars.filter(v => !process.env[v]);
-
-if (missingVars.length > 0) {
-  console.error(`❌ FATAL ERROR: Missing required environment variables: ${missingVars.join(', ')}`);
+// Validate environment variables
+if (!process.env.MONGO_URI || !process.env.JWT_SECRET) {
+  console.error('❌ Missing required environment variables!');
   process.exit(1);
 }
 
-// ⚡ Performance Monitoring
-app.use((req, res, next) => {
-  res.locals.startTime = process.hrtime();
-  next();
-});
+const app = express();
 
-// 🛡️ Security Middleware
-app.use(helmet());
+// Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: 'http://localhost:5173', // Update with your frontend URL
+  credentials: true
 }));
+app.use(express.json());
 
-// 🚦 Rate Limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per window
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use(limiter);
+// MongoDB Connection
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// 📦 Body Parsing
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-// 📝 Request Logging
-app.use(logRequests);
-
-// 🔗 MongoDB Connection
-const mongoOptions = {
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 30000,
-  maxPoolSize: 50,
-  retryWrites: true,
-  w: 'majority'
-};
-
-mongoose.connect(process.env.MONGODB_URI, mongoOptions)
-  .then(() => {
-    console.log('✅ MongoDB connected');
-    mongoose.connection.on('error', err => console.error('❌ MongoDB runtime error:', err));
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err);
-    process.exit(1);
-  });
-
-// 🛣️ API Routes
+// Routes
 app.use('/api/auth', authRoutes);
 
-// ✅ Health Check Endpoint
+// Health Check
 app.get('/api/health', (req, res) => {
-  const uptime = process.uptime();
-  const memoryUsage = process.memoryUsage();
-  
-  res.status(200).json({
-    status: 'OK',
-    uptime: `${uptime.toFixed(2)} seconds`,
-    dbState: mongoose.connection.readyState, // 1 = connected
-    memoryUsage: {
-      rss: `${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`,
-      heapTotal: `${(memoryUsage.heapTotal / 1024 / 1024).toFixed(2)} MB`,
-      heapUsed: `${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)} MB`
-    },
-    environment: process.env.NODE_ENV
-  });
+  res.status(200).json({ status: 'OK' });
 });
 
-// ⚠️ Global Error Handling
-app.use(logErrors); // Log errors first
-app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  const message = statusCode === 500 ? 'Internal Server Error' : err.message;
-  
-  if (statusCode === 500) {
-    console.error('🔥 Unhandled Error:', {
-      error: err.stack || err,
-      request: {
-        method: req.method,
-        url: req.originalUrl,
-        body: req.body
-      }
-    });
+// Data Existence Check Endpoint (Alternative approach)
+app.post('/api/check-user', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await mongoose.model('User').findOne({ email });
+    
+    if (user) {
+      return res.status(200).json({ 
+        exists: true,
+        message: 'User already exists (already full)' 
+      });
+    } else {
+      return res.status(200).json({ 
+        exists: false,
+        redirect: '/login',
+        message: 'Proceed to login' 
+      });
+    }
+  } catch (error) {
+    console.error('Check user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  res.status(statusCode).json({
-    error: message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
 });
 
-// 🚀 Server Initialization
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error('🔥 Error:', err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-});
-
-// 🛑 Graceful Shutdown
-const shutdown = (signal) => {
-  console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
-  server.close(async () => {
-    await mongoose.connection.close();
-    console.log('✅ All connections closed. Server terminated.');
-    process.exit(0);
-  });
-};
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

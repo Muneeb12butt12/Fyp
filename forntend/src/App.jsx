@@ -9,7 +9,7 @@ import Checkout from "./Pages/Checkout";
 import Test from "./Pages/Test";
 import ForgotPassword from "./Pages/ForgotPassword.JSX";
 import VerifyCode from "./Pages/VerifyCode";
-import SetNewPassword from "./Pages/SetNewPassword";
+import ResetPassword from "./Pages/ResetPassword";
 import Product from "./Pages/Product";
 import AboutUs from "./Pages/AboutUs";
 import Cart from "./Pages/Cart";
@@ -35,7 +35,7 @@ const App = () => {
 
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verifycode" element={<VerifyCode />} />
-          <Route path="/set-password" element={<SetNewPassword />} />
+          <Route path="/ResetPassword" element={<ResetPassword />} />
           // In your router configuration
           <Route path="/order-details" element={<OrderDetailsPage />} />
           <Route path="/product" element={<Product />} />

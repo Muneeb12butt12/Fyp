@@ -1,12 +1,17 @@
 import express from 'express';
-import { registerUser, loginUser } from '../controllers/authController.js';
+import { 
+  login, 
+  signup, 
+  checkExistingData  // Import the new controller
+} from '../controllers/auth.js';
 
 const router = express.Router();
 
-// POST /api/auth/register
-router.post('/register', registerUser);
+// Registration and Login
+router.post('/register', signup); 
+router.post('/login', login);
 
-// POST /api/auth/login
-router.post('/login', loginUser);
+// New endpoint to check if data exists
+router.post('/check-data', checkExistingData);
 
 export default router;
