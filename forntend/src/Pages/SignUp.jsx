@@ -73,7 +73,7 @@ const SignUp = () => {
       // Handle successful signup
       toast.success('Registration successful!');
       localStorage.setItem('token', response.data.token);
-      navigate('/'); // Redirect to home or dashboard
+      navigate('/signin'); // Redirect to home or dashboard
     } catch (error) {
       console.error('Signup error:', error);
       const errorMessage = error.response?.data?.msg || 
