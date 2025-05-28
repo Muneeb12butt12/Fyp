@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Logo from "../../assets/logo.png";
 import { IoMdSearch, IoMdPerson } from "react-icons/io";
-import { FaCartShopping } from "react-icons/fa6";
-import { FaCaretDown, FaBars, FaTimes } from "react-icons/fa";
+import { FaShoppingCart, FaUserCircle, FaCaretDown, FaBars, FaTimes } from "react-icons/fa";
 import DarkMode from "./DarkMode";
 import { useNavigate } from "react-router-dom";
 import CartIcon from "../CartIcon";
@@ -26,6 +25,76 @@ const Navbar = ({ handleOrderPopup }) => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    setShowUserDropdown(false);
+    navigate('/');
+  };
+
+  const UserAvatar = () => {
+    if (!user) return null;
+    
+    const getInitials = () => {
+      if (user.firstName && user.lastName) {
+        return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase();
+      }
+      return user.email.charAt(0).toUpperCase();
+    };
+
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setShowUserDropdown(!showUserDropdown)}
+          className="flex items-center gap-1 focus:outline-none"
+        >
+          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-secondary text-white flex items-center justify-center font-medium hover:shadow-md transition-all">
+            {getInitials()}
+          </div>
+          <FaCaretDown className={`text-gray-500 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showUserDropdown && (
+          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700">
+            <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700">
+              {user.firstName ? `${user.firstName} ${user.lastName}` : user.email}
+            </div>
+            <a
+              href="/profile"
+              className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setShowUserDropdown(false)}
+            >
+              My Profile
+            </a>
+            <a
+              href="/orders"
+              className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setShowUserDropdown(false)}
+            >
+              My Orders
+            </a>
+            <button
+              onClick={handleLogout}
+              className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Logout
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="shadow-md bg-white dark:bg-gray-900 dark:text-white duration-200 relative z-40">
@@ -55,14 +124,18 @@ const Navbar = ({ handleOrderPopup }) => {
               <IoMdSearch className="text-gray-500 group-hover:text-primary absolute top-1/2 -translate-y-1/2 right-4" />
             </div>
 
-            {/* Sign In */}
-            <button 
-              onClick={() => navigate("/signin")}
-              className="hidden sm:flex items-center gap-1 text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors"
-            >
-              <IoMdPerson className="text-xl" />
-              <span className="text-sm font-medium">Sign In</span>
-            </button>
+            {/* User Avatar or Sign In */}
+            {user ? (
+              <UserAvatar />
+            ) : (
+              <button 
+                onClick={() => navigate("/signin")}
+                className="hidden sm:flex items-center gap-1 text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors"
+              >
+                <IoMdPerson className="text-xl" />
+                <span className="text-sm font-medium">Sign In</span>
+              </button>
+            )}
 
             {/* Order Button */}
             <button
@@ -70,7 +143,7 @@ const Navbar = ({ handleOrderPopup }) => {
               className="hidden sm:flex bg-gradient-to-r from-primary to-secondary text-white py-2 px-4 rounded-full items-center gap-2 group hover:shadow-lg transition-all"
             >
               <span className="group-hover:block hidden text-sm">Order</span>
-              <FaCartShopping className="text-lg" />
+              <FaShoppingCart className="text-lg" />
             </button>
 
             {/* Dark Mode */}
@@ -80,12 +153,18 @@ const Navbar = ({ handleOrderPopup }) => {
 
             {/* Mobile Icons */}
             <div className="flex items-center gap-4 sm:hidden">
-              <button 
-                onClick={() => navigate("/signin")}
-                className="text-gray-700 dark:text-gray-300"
-              >
-                <IoMdPerson className="text-xl" />
-              </button>
+              {user ? (
+                <div onClick={() => navigate('/profile')} className="cursor-pointer">
+                  <FaUserCircle className="text-2xl text-primary" />
+                </div>
+              ) : (
+                <button 
+                  onClick={() => navigate("/signin")}
+                  className="text-gray-700 dark:text-gray-300"
+                >
+                  <IoMdPerson className="text-xl" />
+                </button>
+              )}
               <CartIcon />
               <div 
                 className="cursor-pointer" 

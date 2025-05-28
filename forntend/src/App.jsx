@@ -21,6 +21,8 @@ import OrderDetailsPage from "./Pages/OrderDetailsPage";
 import AddProduct from "./Pages/AddProduct";
 import SellerDashboard from "./Pages/SellerDashboard";
 import AdminDashboard from "./Pages/AdminDashboard ";
+import Profile from "./Pages/Profile";
+import BuyerDashboard from "./Pages/BuyerDashboard";
 const App = () => {
   return (
     <CartProvider>
@@ -47,6 +49,9 @@ const App = () => {
           <Route path="/add-product" element={<AddProduct />} />
           <Route path="/seller-dashboard" element={<SellerDashboard />} />
           <Route path="/AdminDashboard" element={<AdminDashboard />} />
+          <Route path="/Profile" element={<Profile />} />
+          <Route path="/BuyerDashboard" element={<BuyerDashboard />} />
+          
         </Routes>
        
       

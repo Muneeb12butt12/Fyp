@@ -8,21 +8,17 @@ export const signup = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password } = req.body;
 
-    // Validation
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ message: 'Email already in use' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const newUser = new User({
       firstName,
       lastName,
@@ -33,7 +29,6 @@ export const signup = async (req, res) => {
 
     await newUser.save();
 
-    // Generate JWT
     const token = jwt.sign(
       { userId: newUser._id, email: newUser.email },
       process.env.JWT_SECRET,
@@ -113,7 +108,7 @@ export const checkExistingData = async (req, res) => {
       return res.status(200).json({ 
         exists: false,
         message: 'Email available',
-        redirectTo: '/signin' // Or your preferred redirect path
+        redirectTo: '/signin'
       });
     }
   } catch (error) {
@@ -124,3 +119,46 @@ export const checkExistingData = async (req, res) => {
     });
   }
 };
+
+export const getProfile = async (req, res) => {
+  try {
+    res.json({ user: req.user });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { firstName, lastName, phone, address } = req.body;
+    
+    let updateData = { 
+      firstName, 
+      lastName, 
+      phone, 
+      address 
+    };
+
+    // Handle file upload if present
+    if (req.file) {
+      updateData.profilePicture = `/uploads/profile-pictures/${req.file.filename}`;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+};
+
