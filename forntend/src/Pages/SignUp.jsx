@@ -33,7 +33,7 @@ const SignUp = () => {
 
       setEmailChecking(true);
       try {
-        const { data } = await axios.post("http://localhost:5000/api/check-user", {
+        const { data } = await axios.post("http://localhost:5000/api/auth/check-email", {
           email: formData.email.trim().toLowerCase()
         });
 

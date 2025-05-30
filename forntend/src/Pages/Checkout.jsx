@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
-
+import axios from 'axios';
 const Checkout = () => {
   const { cart, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
@@ -40,34 +40,50 @@ const Checkout = () => {
     setIsProcessing(true);
   
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      // 1. Prepare order data
       const orderData = {
-        orderId: `ORD-${Math.floor(Math.random() * 1000000)}`,
-        customer: formData,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        city: formData.city,
+        country: formData.country,
+        zipCode: formData.zipCode,
+        paymentMethod: formData.paymentMethod,
+        shippingMethod: formData.shippingMethod,
         items: cart,
-        total: formData.shippingMethod === 'express' ? cartTotal + 9.99 : cartTotal,
-        date: new Date().toISOString(),
-        status: 'Processing'
+        cartTotal: cartTotal
       };
   
-      setOrderDetails(orderData);
+      // 2. Send to backend
+      const response = await axios.post(
+        'http://localhost:5000/api/orders', 
+        orderData,
+        {
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+  
+      // 3. Handle success
+      setOrderDetails(response.data);
       setOrderSuccess(true);
       clearCart();
-      
-      // Redirect to seller dashboard with order data
+  
+      // 4. Redirect
       navigate('/seller-dashboard', { 
         state: { 
           newOrder: {
-            ...orderData,
+            ...response.data,
             customer: `${formData.firstName} ${formData.lastName}`,
-            amount: orderData.total
+            amount: response.data.total
           }
         } 
       });
+  
     } catch (error) {
-      console.error('Checkout error:', error);
+      console.error('Checkout failed:', error.response?.data || error.message);
+      alert('Order failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }

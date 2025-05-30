@@ -1,164 +1,201 @@
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
 import User from '../models/User.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import validator from 'validator';
 
+// Check if email or phone already exists
+export const checkExistingData = async (req, res) => {
+  try {
+    const { email, phone } = req.body;
+
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or phone is required',
+        code: 'MISSING_DATA'
+      });
+    }
+
+    const existingData = {};
+    if (email) {
+      existingData.email = await User.findOne({ email });
+    }
+    if (phone) {
+      existingData.phone = await User.findOne({ phone });
+    }
+
+    res.status(200).json({
+      success: true,
+      exists: {
+        email: !!existingData.email,
+        phone: !!existingData.phone
+      },
+      message: 'Data availability checked'
+    });
+
+  } catch (error) {
+    console.error('Check existing data error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      code: 'SERVER_ERROR'
+    });
+  }
+};
+
+// User registration
 export const signup = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password } = req.body;
 
     if (!firstName || !lastName || !email || !password) {
-      return res.status(400).json({ message: 'All fields are required' });
+      return res.status(400).json({
+        success: false,
+        message: 'All required fields must be provided',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
+    if (!validator.isEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+        code: 'INVALID_EMAIL'
+      });
     }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({ message: 'Email already in use' });
+      return res.status(409).json({
+        success: false,
+        message: 'Email already in use',
+        code: 'EMAIL_EXISTS'
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = new User({
+    const user = new User({
       firstName,
       lastName,
       email,
-      phone,
+      phone: phone || null,
       password: hashedPassword
     });
 
-    await newUser.save();
+    await user.save();
 
     const token = jwt.sign(
-      { userId: newUser._id, email: newUser.email },
+      { userId: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '7d' }
     );
 
-    res.status(201).json({ 
-      message: 'User created successfully',
+    res.status(201).json({
+      success: true,
       token,
       user: {
-        id: newUser._id,
-        firstName: newUser.firstName,
-        email: newUser.email
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone
       }
     });
+
   } catch (error) {
     console.error('Signup error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      code: 'SERVER_ERROR'
+    });
   }
 };
 
+// Login
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required',
+        code: 'MISSING_CREDENTIALS'
+      });
     }
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    const user = await User.findOne({ email }).select('+password');
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
+        code: 'INVALID_CREDENTIALS'
+      });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    const token = jwt.sign(
-      { userId: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
     res.status(200).json({
-      message: 'Login successful',
+      success: true,
       token,
       user: {
-        id: user._id,
+        _id: user._id,
         firstName: user.firstName,
-        email: user.email
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        isAdmin: user.isAdmin
       }
     });
+
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-export const checkExistingData = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ message: 'Email is required' });
-    }
-
-    const existingUser = await User.findOne({ email });
-    
-    if (existingUser) {
-      return res.status(200).json({ 
-        exists: true,
-        message: 'Email already registered' 
-      });
-    } else {
-      return res.status(200).json({ 
-        exists: false,
-        message: 'Email available',
-        redirectTo: '/signin'
-      });
-    }
-  } catch (error) {
-    console.error('Data check error:', error);
-    res.status(500).json({ 
-      message: 'Error checking user data',
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      code: 'SERVER_ERROR'
     });
   }
 };
 
+// Get user profile
 export const getProfile = async (req, res) => {
   try {
-    res.json({ user: req.user });
+    const user = await User.findById(req.user._id).select('-password');
+    res.status(200).json({ success: true, user });
   } catch (error) {
     console.error('Get profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      code: 'SERVER_ERROR'
+    });
   }
 };
 
+// Update user profile
 export const updateProfile = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { firstName, lastName, phone, address } = req.body;
-    
-    let updateData = { 
-      firstName, 
-      lastName, 
-      phone, 
-      address 
-    };
-
-    // Handle file upload if present
+    const updates = req.body;
     if (req.file) {
-      updateData.profilePicture = `/uploads/profile-pictures/${req.file.filename}`;
+      updates.profilePicture = req.file.path;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      updates,
       { new: true, runValidators: true }
     ).select('-password');
 
-    res.status(200).json({
-      message: 'Profile updated successfully',
-      user: updatedUser
-    });
+    res.status(200).json({ success: true, user });
   } catch (error) {
     console.error('Update profile error:', error);
-    res.status(500).json({ message: error.message || 'Server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      code: 'SERVER_ERROR'
+    });
   }
 };
-
