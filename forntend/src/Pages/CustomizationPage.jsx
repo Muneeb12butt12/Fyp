@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
-const ColorizableImage = ({ src, color, className }) => {
+const ColorizableImage = ({ src, color, className, filter, pattern }) => {
   const canvasRef = useRef(null);
   
   useEffect(() => {
@@ -16,12 +16,65 @@ const ColorizableImage = ({ src, color, className }) => {
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw base image
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      // Apply color
       ctx.globalCompositeOperation = 'multiply';
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.globalCompositeOperation = 'destination-atop';
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      // Apply filter
+      if (filter) {
+        ctx.globalCompositeOperation = 'overlay';
+        switch(filter) {
+          case 'vintage':
+            ctx.fillStyle = 'rgba(200, 180, 120, 0.2)';
+            break;
+          case 'blackAndWhite':
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+              const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+              data[i] = avg;
+              data[i + 1] = avg;
+              data[i + 2] = avg;
+            }
+            ctx.putImageData(imageData, 0, 0);
+            break;
+          case 'sepia':
+            ctx.fillStyle = 'rgba(112, 66, 20, 0.3)';
+            break;
+          case 'cool':
+            ctx.fillStyle = 'rgba(0, 100, 200, 0.1)';
+            break;
+          case 'warm':
+            ctx.fillStyle = 'rgba(255, 100, 0, 0.1)';
+            break;
+          default:
+            break;
+        }
+        if (filter !== 'blackAndWhite') {
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+      
+      // Apply pattern if exists
+      if (pattern) {
+        const patternImg = new Image();
+        patternImg.onload = () => {
+          ctx.globalCompositeOperation = 'overlay';
+          const pattern = ctx.createPattern(patternImg, 'repeat');
+          ctx.fillStyle = pattern;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        };
+        patternImg.src = pattern;
+      }
+      
+      // Add subtle shadow
       ctx.globalCompositeOperation = 'overlay';
       ctx.fillStyle = 'rgba(0,0,0,0.1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -40,7 +93,7 @@ const ColorizableImage = ({ src, color, className }) => {
     
     img.src = src;
     img.crossOrigin = 'Anonymous';
-  }, [src, color]);
+  }, [src, color, filter, pattern]);
 
   return <canvas ref={canvasRef} className={className} />;
 };
@@ -54,30 +107,40 @@ const CustomizationPage = () => {
   
   // Enhanced color palette with 20 distinct colors
   const enhancedColors = [
-    '#FF0000', // Red
-    '#FF4500', // OrangeRed
-    '#FF8C00', // DarkOrange
-    '#FFA500', // Orange
-    '#FFD700', // Gold
-    '#FFFF00', // Yellow
-    '#9ACD32', // YellowGreen
-    '#00FF00', // Lime
-    '#2E8B57', // SeaGreen
-    '#008080', // Teal
-    '#00FFFF', // Cyan
-    '#1E90FF', // DodgerBlue
-    '#0000FF', // Blue
-    '#8A2BE2', // BlueViolet
-    '#9932CC', // DarkOrchid
-    '#FF00FF', // Magenta
-    '#FF1493', // DeepPink
-    '#C71585', // MediumVioletRed
-    '#000000', // Black
-    '#FFFFFF', // White
-    '#808080', // Gray
-    '#A0522D', // Sienna
-    '#D2B48C', // Tan
-    '#FFE4B5', // Moccasin
+    '#FF0000', '#FF4500', '#FF8C00', '#FFA500', '#FFD700', 
+    '#FFFF00', '#9ACD32', '#00FF00', '#2E8B57', '#008080', 
+    '#00FFFF', '#1E90FF', '#0000FF', '#8A2BE2', '#9932CC', 
+    '#FF00FF', '#FF1493', '#C71585', '#000000', '#FFFFFF', 
+    '#808080', '#A0522D', '#D2B48C', '#FFE4B5'
+  ];
+
+  // Fabric options
+  const fabricOptions = [
+    { id: 'cotton', name: 'Premium Cotton', price: 0, description: 'Soft, breathable 100% cotton' },
+    { id: 'polyester', name: 'Performance Polyester', price: 4.99, description: 'Moisture-wicking and durable' },
+    { id: 'blend', name: 'Cotton-Poly Blend', price: 2.99, description: 'Best of both worlds' },
+    { id: 'organic', name: 'Organic Cotton', price: 7.99, description: 'Eco-friendly and soft' },
+    { id: 'linen', name: 'Linen', price: 9.99, description: 'Lightweight and natural' }
+  ];
+
+  // Image filters
+  const filterOptions = [
+    { id: 'none', name: 'No Filter' },
+    { id: 'vintage', name: 'Vintage' },
+    { id: 'blackAndWhite', name: 'Black & White' },
+    { id: 'sepia', name: 'Sepia' },
+    { id: 'cool', name: 'Cool Tone' },
+    { id: 'warm', name: 'Warm Tone' }
+  ];
+
+  // Pattern options
+  const patternOptions = [
+    { id: 'none', name: 'No Pattern', image: null },
+    { id: 'stripes', name: 'Thin Stripes', image: 'https://example.com/patterns/stripes.png', price: 3.99 },
+    { id: 'dots', name: 'Polka Dots', image: 'https://example.com/patterns/dots.png', price: 4.99 },
+    { id: 'camo', name: 'Camouflage', image: 'https://example.com/patterns/camo.png', price: 5.99 },
+    { id: 'floral', name: 'Floral', image: 'https://example.com/patterns/floral.png', price: 6.99 },
+    { id: 'geometric', name: 'Geometric', image: 'https://example.com/patterns/geometric.png', price: 5.99 }
   ];
 
   // Default product with numeric price
@@ -92,7 +155,10 @@ const CustomizationPage = () => {
   };
 
   // Safely parse incoming product data
-  const { productData, selectedColor: initialColor, selectedSize: initialSize, quantity: initialQuantity } = location.state || {};
+  const { productData, selectedColor: initialColor, selectedSize: initialSize, 
+          quantity: initialQuantity, selectedFabric: initialFabric, selectedFilter: initialFilter,
+          selectedPattern: initialPattern } = location.state || {};
+  
   const product = productData ? {
     ...productData,
     price: parseFloat(productData.price) || defaultProduct.price
@@ -102,15 +168,19 @@ const CustomizationPage = () => {
   const [selectedColor, setSelectedColor] = useState(initialColor || product.colors[0]);
   const [selectedSize, setSelectedSize] = useState(initialSize || product.sizes[0]);
   const [quantity, setQuantity] = useState(initialQuantity || 1);
-  const [selectedLogo, setSelectedLogo] = useState(null);
-  const [logoSize, setLogoSize] = useState('medium');
-  const [customText, setCustomText] = useState('');
-  const [textColor, setTextColor] = useState('#000000');
-  const [textPosition, setTextPosition] = useState('below-logo');
+  const [selectedLogo, setSelectedLogo] = useState(location.state?.selectedLogo || null);
+  const [logoSize, setLogoSize] = useState(location.state?.logoSize || 'medium');
+  const [customText, setCustomText] = useState(location.state?.customText || '');
+  const [textColor, setTextColor] = useState(location.state?.textColor || '#000000');
+  const [textPosition, setTextPosition] = useState(location.state?.textPosition || 'below-logo');
   const [totalPrice, setTotalPrice] = useState((product.price * quantity).toFixed(2));
-  const [logoPosition, setLogoPosition] = useState({ x: 50, y: 50 });
+  const [logoPosition, setLogoPosition] = useState(location.state?.logoPosition || { x: 50, y: 50 });
+  const [textPositionCoords, setTextPositionCoords] = useState({ x: 50, y: 50 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [selectedFabric, setSelectedFabric] = useState(initialFabric || fabricOptions[0]);
+  const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'none');
+  const [selectedPattern, setSelectedPattern] = useState(initialPattern || patternOptions[0]);
 
   // Logo options
   const logoOptions = [
@@ -142,18 +212,30 @@ const CustomizationPage = () => {
     const basePrice = parseFloat(product.price) || 0;
     let price = basePrice;
     
+    // Add fabric cost
+    const fabric = fabricOptions.find(f => f.id === selectedFabric);
+    if (fabric) price += parseFloat(fabric.price) || 0;
+    
+    // Add logo cost
     if (selectedLogo) price += parseFloat(selectedLogo.price) || 0;
     
+    // Add logo size cost
     const sizeOption = sizeOptions.find(option => option.value === logoSize);
     if (sizeOption) price += parseFloat(sizeOption.price) || 0;
     
+    // Add text cost
     if (customText.trim() !== '') {
       price += 2.99;
       if (customText.length > 15) price += 1.99;
     }
     
+    // Add pattern cost
+    if (selectedPattern && selectedPattern.id !== 'none') {
+      price += parseFloat(selectedPattern.price) || 0;
+    }
+    
     setTotalPrice((price * quantity).toFixed(2));
-  }, [product.price, selectedLogo, logoSize, customText, quantity]);
+  }, [product.price, selectedLogo, logoSize, customText, quantity, selectedFabric, selectedPattern]);
 
   // Draggable logo handlers
   const handleMouseDown = (e) => {
@@ -189,6 +271,29 @@ const CustomizationPage = () => {
     setIsDragging(false);
   };
 
+  // Handle text movement with arrow keys
+  const handleKeyDown = (e) => {
+    if (!customText) return;
+    
+    const step = 5;
+    switch(e.key) {
+      case 'ArrowUp':
+        setTextPositionCoords(prev => ({ ...prev, y: Math.max(0, prev.y - step) }));
+        break;
+      case 'ArrowDown':
+        setTextPositionCoords(prev => ({ ...prev, y: Math.min(100, prev.y + step) }));
+        break;
+      case 'ArrowLeft':
+        setTextPositionCoords(prev => ({ ...prev, x: Math.max(0, prev.x - step) }));
+        break;
+      case 'ArrowRight':
+        setTextPositionCoords(prev => ({ ...prev, x: Math.min(100, prev.x + step) }));
+        break;
+      default:
+        break;
+    }
+  };
+
   useEffect(() => {
     if (isDragging) {
       window.addEventListener('mousemove', handleMouseMove);
@@ -200,6 +305,13 @@ const CustomizationPage = () => {
     }
   }, [isDragging, dragStart]);
 
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [customText]);
+
   const handleSaveCustomization = async (e) => {
     e.preventDefault();
     
@@ -208,6 +320,9 @@ const CustomizationPage = () => {
       selectedColor,
       selectedSize,
       quantity: parseInt(quantity) || 1,
+      selectedFabric,
+      selectedFilter,
+      selectedPattern,
       customization: {
         logo: selectedLogo,
         position: `${logoPosition.x},${logoPosition.y}`,
@@ -215,8 +330,12 @@ const CustomizationPage = () => {
         text: customText,
         textColor,
         textPosition,
+        textCoords: `${textPositionCoords.x},${textPositionCoords.y}`,
         basePrice: parseFloat(product.price) || 0,
-        finalPrice: totalPrice
+        finalPrice: totalPrice,
+        fabric: selectedFabric,
+        filter: selectedFilter,
+        pattern: selectedPattern
       }
     };
 
@@ -257,6 +376,22 @@ const CustomizationPage = () => {
     }
   };
 
+  const handlePatternUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setSelectedPattern({
+          id: 'custom-' + Date.now(),
+          name: 'Custom Pattern',
+          image: event.target.result,
+          price: 9.99
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Customize Your {product.title}</h1>
@@ -269,11 +404,14 @@ const CustomizationPage = () => {
             ref={previewRef}
             className="relative w-full h-96 bg-gray-100 flex items-center justify-center cursor-move rounded-md overflow-hidden"
             onMouseDown={handleMouseDown}
+            tabIndex={0}
           >
             <ColorizableImage 
               src={product.img} 
               color={selectedColor} 
               className="absolute w-full h-full object-contain"
+              filter={selectedFilter}
+              pattern={selectedPattern?.image}
             />
             
             {selectedLogo && (
@@ -302,10 +440,8 @@ const CustomizationPage = () => {
                   color: textColor,
                   fontSize: '18px',
                   fontWeight: 'bold',
-                  top: textPosition.includes('above') ? '30%' : 
-                       textPosition.includes('below') ? '50%' : '40%',
-                  left: textPosition.includes('left') ? '15%' : 
-                        textPosition.includes('right') ? '65%' : '40%',
+                  top: `${textPositionCoords.y}%`,
+                  left: `${textPositionCoords.x}%`,
                   transform: 'translate(-50%, -50%)',
                   zIndex: 15,
                   textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
@@ -320,9 +456,15 @@ const CustomizationPage = () => {
             <div>
               <p className="text-lg font-semibold">Total: ${totalPrice}</p>
               {selectedLogo && <p className="text-sm">Includes {selectedLogo.name}</p>}
+              {selectedPattern && selectedPattern.id !== 'none' && (
+                <p className="text-sm">With {selectedPattern.name} pattern</p>
+              )}
             </div>
             {selectedLogo && (
               <p className="text-sm text-gray-500">Drag logo to reposition</p>
+            )}
+            {customText && (
+              <p className="text-sm text-gray-500">Use arrow keys to move text</p>
             )}
           </div>
           
@@ -335,6 +477,9 @@ const CustomizationPage = () => {
               <span className="ml-1">{selectedColor}</span>
             </p>
             <p className="text-sm mb-2"><span className="font-medium">Size:</span> {selectedSize}</p>
+            <p className="text-sm mb-2"><span className="font-medium">Fabric:</span> {
+              fabricOptions.find(f => f.id === selectedFabric)?.name || 'Standard'
+            }</p>
             <p className="text-sm mb-2"><span className="font-medium">Base Price:</span> ${product.price.toFixed(2)}</p>
             {product.description && (
               <p className="text-sm mt-2">{product.description}</p>
@@ -345,35 +490,126 @@ const CustomizationPage = () => {
         {/* Customization Options */}
         <div className="space-y-6">
           {/* Color Selection */}
-       {/* Color Selection */}
-{/* Color Selection */}
-<div className="bg-white p-6 rounded-lg shadow-lg">
-  <h3 className="text-lg font-semibold mb-3">Select Color</h3>
-  <div className="flex flex-wrap gap-2">
-    {product.colors.map((color) => (
-      <button
-        key={color}
-        onClick={() => setSelectedColor(color)}
-        className={`w-8 h-8 rounded-full border-2 transition-all duration-200 ${
-          selectedColor === color 
-            ? 'border-black scale-110 shadow-md ring-2 ring-offset-1 ring-black' 
-            : 'border-gray-200 hover:border-gray-400 hover:scale-105'
-        }`}
-        style={{ backgroundColor: color }}
-        aria-label={`Select color ${color}`}
-        title={color}
-      />
-    ))}
-  </div>
-  <div className="mt-3 text-sm text-gray-600 flex items-center">
-    <span>Selected:</span>
-    <span className="ml-2 font-medium">{selectedColor}</span>
-    <span 
-      className="ml-2 w-4 h-4 rounded-full border border-gray-300 inline-block"
-      style={{ backgroundColor: selectedColor }}
-    ></span>
-  </div>
-</div>
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h3 className="text-lg font-semibold mb-3">Select Color</h3>
+            <div className="flex flex-wrap gap-2">
+              {product.colors.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setSelectedColor(color)}
+                  className={`w-8 h-8 rounded-full border-2 transition-all duration-200 ${
+                    selectedColor === color 
+                      ? 'border-black scale-110 shadow-md ring-2 ring-offset-1 ring-black' 
+                      : 'border-gray-200 hover:border-gray-400 hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  aria-label={`Select color ${color}`}
+                  title={color}
+                />
+              ))}
+            </div>
+            <div className="mt-3 text-sm text-gray-600 flex items-center">
+              <span>Selected:</span>
+              <span className="ml-2 font-medium">{selectedColor}</span>
+              <span 
+                className="ml-2 w-4 h-4 rounded-full border border-gray-300 inline-block"
+                style={{ backgroundColor: selectedColor }}
+              ></span>
+            </div>
+          </div>
+          
+          {/* Fabric Selection */}
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h3 className="text-lg font-semibold mb-3">Select Fabric</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {fabricOptions.map((fabric) => (
+                <button
+                  key={fabric.id}
+                  onClick={() => setSelectedFabric(fabric.id)}
+                  className={`p-3 border rounded-md text-left transition-colors ${
+                    selectedFabric === fabric.id
+                      ? 'border-black bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  <p className="font-medium">{fabric.name}</p>
+                  <p className="text-sm text-gray-600">{fabric.description}</p>
+                  {fabric.price > 0 && (
+                    <p className="text-sm text-blue-600">+${fabric.price.toFixed(2)}</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Image Filter */}
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h3 className="text-lg font-semibold mb-3">Image Filter</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {filterOptions.map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => setSelectedFilter(filter.id)}
+                  className={`p-2 border rounded-md transition-colors ${
+                    selectedFilter === filter.id
+                      ? 'border-black bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  {filter.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Pattern Selection */}
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h3 className="text-lg font-semibold mb-3">Add Pattern</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {patternOptions.map((pattern) => (
+                <button
+                  key={pattern.id}
+                  onClick={() => setSelectedPattern(pattern)}
+                  className={`p-2 border rounded-md transition-colors ${
+                    selectedPattern?.id === pattern.id
+                      ? 'border-black bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  {pattern.image ? (
+                    <img 
+                      src={pattern.image} 
+                      alt={pattern.name} 
+                      className="w-full h-12 object-cover mb-1"
+                    />
+                  ) : (
+                    <div className="w-full h-12 bg-gray-100 flex items-center justify-center mb-1">
+                      <span>No Pattern</span>
+                    </div>
+                  )}
+                  <p className="text-sm">{pattern.name}</p>
+                  {pattern.price > 0 && (
+                    <p className="text-xs text-blue-600">+${pattern.price.toFixed(2)}</p>
+                  )}
+                </button>
+              ))}
+            </div>
+            
+            <div className="mt-4">
+              <label className="block text-sm font-medium mb-2">Upload Your Own Pattern</label>
+              <input 
+                type="file" 
+                accept="image/*"
+                onChange={handlePatternUpload}
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-black file:text-white
+                  hover:file:bg-gray-800"
+              />
+            </div>
+          </div>
           
           {/* Size Selection */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -485,18 +721,48 @@ const CustomizationPage = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Text Position</label>
-                  <select
-                    value={textPosition}
-                    onChange={(e) => setTextPosition(e.target.value)}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    {textPositionOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-medium mb-2">Text Position Controls</label>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setTextPositionCoords(prev => ({ ...prev, y: Math.max(0, prev.y - 5) }))}
+                      className="p-2 border rounded-md hover:bg-gray-100"
+                      aria-label="Move text up"
+                    >
+                      ↑
+                    </button>
+                    <button 
+                      onClick={() => setTextPositionCoords(prev => ({ ...prev, y: Math.min(100, prev.y + 5) }))}
+                      className="p-2 border rounded-md hover:bg-gray-100"
+                      aria-label="Move text down"
+                    >
+                      ↓
+                    </button>
+                    <button 
+                      onClick={() => setTextPositionCoords(prev => ({ ...prev, x: Math.max(0, prev.x - 5) }))}
+                      className="p-2 border rounded-md hover:bg-gray-100"
+                      aria-label="Move text left"
+                    >
+                      ←
+                    </button>
+                    <button 
+                      onClick={() => setTextPositionCoords(prev => ({ ...prev, x: Math.min(100, prev.x + 5) }))}
+                      className="p-2 border rounded-md hover:bg-gray-100"
+                      aria-label="Move text right"
+                    >
+                      →
+                    </button>
+                    <button 
+                      onClick={() => setTextPositionCoords({ x: 50, y: 50 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                      aria-label="Reset text position"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Position: X: {textPositionCoords.x}%, Y: {textPositionCoords.y}% 
+                    (or use arrow keys when preview is focused)
+                  </p>
                 </div>
               </div>
             )}
@@ -528,18 +794,43 @@ const CustomizationPage = () => {
           </div>
           
           {/* Action Buttons */}
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-4">
+              <button
+                onClick={() => navigate(-1)}
+                className="flex-1 border-2 border-black bg-white text-black px-8 py-3 rounded-md hover:bg-gray-100 transition-colors font-medium"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleSaveCustomization}
+                className="flex-1 bg-black text-white px-8 py-3 rounded-md hover:bg-gray-800 transition-colors font-medium"
+              >
+                {location.state?.cartItem ? 'Update Customization' : 'Add to Cart'} - ${totalPrice}
+              </button>
+            </div>
             <button
-              onClick={() => navigate(-1)}
-              className="flex-1 border-2 border-black bg-white text-black px-8 py-3 rounded-md hover:bg-gray-100 transition-colors font-medium"
+              onClick={() => navigate('/CustomizationTool', { 
+                state: { 
+                  productData: product,
+                  selectedColor,
+                  selectedSize,
+                  quantity,
+                  selectedLogo,
+                  logoSize,
+                  customText,
+                  textColor,
+                  textPosition,
+                  logoPosition,
+                  textPositionCoords,
+                  selectedFabric,
+                  selectedFilter,
+                  selectedPattern
+                } 
+              })}
+              className="w-full border-2 border-blue-600 bg-white text-blue-600 px-8 py-3 rounded-md hover:bg-blue-50 transition-colors font-medium"
             >
-              Back
-            </button>
-            <button
-              onClick={handleSaveCustomization}
-              className="flex-1 bg-black text-white px-8 py-3 rounded-md hover:bg-gray-800 transition-colors font-medium"
-            >
-              {location.state?.cartItem ? 'Update Customization' : 'Add to Cart'} - ${totalPrice}
+              Advanced Customization
             </button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { createOrder } from '../api/orderApi';
 const Checkout = () => {
   const { cart, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
@@ -40,57 +40,55 @@ const Checkout = () => {
     setIsProcessing(true);
   
     try {
-      // 1. Prepare order data
+      const response = await fetch('http://localhost:5000/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          items: cart,
+          cartTotal
+        }),
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to process order');
+      }
+  
+      const data = await response.json();
+      
       const orderData = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
-        city: formData.city,
-        country: formData.country,
-        zipCode: formData.zipCode,
-        paymentMethod: formData.paymentMethod,
-        shippingMethod: formData.shippingMethod,
+        orderId: data.order.orderId,
+        customer: formData,
         items: cart,
-        cartTotal: cartTotal
+        total: formData.shippingMethod === 'express' ? cartTotal + 9.99 : cartTotal,
+        date: new Date().toISOString(),
+        status: 'Processing',
+        estimatedDelivery: data.order.estimatedDelivery
       };
   
-      // 2. Send to backend
-      const response = await axios.post(
-        'http://localhost:5000/api/orders', 
-        orderData,
-        {
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-  
-      // 3. Handle success
-      setOrderDetails(response.data);
+      setOrderDetails(orderData);
       setOrderSuccess(true);
       clearCart();
   
-      // 4. Redirect
+      // Redirect to seller dashboard with order data
       navigate('/seller-dashboard', { 
         state: { 
           newOrder: {
-            ...response.data,
+            ...orderData,
             customer: `${formData.firstName} ${formData.lastName}`,
-            amount: response.data.total
+            amount: orderData.total
           }
         } 
       });
-  
     } catch (error) {
-      console.error('Checkout failed:', error.response?.data || error.message);
-      alert('Order failed. Please try again.');
+      console.error('Checkout error:', error);
+      alert('There was an error processing your order. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
-  if (orderSuccess && orderDetails) {
-    return <OrderConfirmation order={orderDetails} onContinueShopping={() => navigate('/')} />;
-  }
 
   if (cart.length === 0 && !orderSuccess) {
     return (

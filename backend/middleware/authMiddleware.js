@@ -1,239 +1,196 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import User from '../models/Order.js';
 
-// Enhanced token blacklist (with TTL cleanup)
-const tokenBlacklist = new Map();
+// Cache for revoked tokens (in production, use Redis)
+const tokenBlacklist = new Set();
 
 export const authMiddleware = async (req, res, next) => {
   try {
-    // Enhanced token extraction from multiple sources
-    const token = extractToken(req);
-    
+    // Check for token in multiple locations
+    const token = 
+      req.headers.authorization?.split(' ')[1] || // Bearer token
+      req.cookies?.token || // HTTP-only cookie
+      req.signedCookies?.token; // Signed cookie
+
     if (!token) {
-      return sendAuthError(res, 'No authentication token provided', 'TOKEN_MISSING');
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required',
+        code: 'AUTH_REQUIRED',
+        docs: process.env.API_DOCS_URL + '/authentication'
+      });
     }
 
-    // Check token revocation
-    if (isTokenRevoked(token)) {
-      return sendAuthError(res, 'Token revoked', 'TOKEN_REVOKED');
+    // Check if token is blacklisted
+    if (tokenBlacklist.has(token)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token revoked',
+        code: 'TOKEN_REVOKED'
+      });
     }
 
-    // Verify and decode token with enhanced validation
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return sendAuthError(res, 'Invalid token', 'TOKEN_INVALID');
-    }
-
-    // Validate token claims
-    if (!validateTokenClaims(decoded)) {
-      return sendAuthError(res, 'Invalid token claims', 'INVALID_TOKEN_CLAIMS');
-    }
-
-    // Fetch and validate user
-    const user = await validateUserSession(decoded);
-    if (!user) {
-      return sendAuthError(res, 'User session invalid', 'SESSION_INVALID');
-    }
-
-    // Check account status
-    if (!user.isActive) {
-      return sendAuthError(res, 'Account deactivated', 'ACCOUNT_DEACTIVATED', 403);
-    }
-
-    // Attach user to request with enhanced security context
-    attachUserToRequest(req, res, user);
-    
-    next();
-  } catch (error) {
-    handleAuthError(error, res);
-  }
-};
-
-// Helper Functions
-
-function extractToken(req) {
-  return (
-    req.headers.authorization?.replace(/^Bearer\s+/i, '') || // Bearer token
-    req.headers['x-access-token'] || // Custom header
-    req.cookies?.token || // HTTP-only cookie
-    req.signedCookies?.token // Signed cookie
-  );
-}
-
-function isTokenRevoked(token) {
-  return tokenBlacklist.has(token);
-}
-
-function verifyToken(token) {
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET, {
+    // Verify token with multiple checks
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: ['HS256'],
       issuer: process.env.JWT_ISSUER || 'your-app-name',
       audience: process.env.JWT_AUDIENCE || 'your-app-client',
       maxAge: process.env.JWT_EXPIRE || '1h'
     });
+
+    // Check if token has required claims
+    if (!decoded.userId || !decoded.iat) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token claims',
+        code: 'INVALID_TOKEN_CLAIMS'
+      });
+    }
+
+    // Get user with session validation
+    const user = await User.findById(decoded.userId)
+      .select('-password -refreshToken')
+      .lean();
+
+    if (!user || user.tokenVersion !== decoded.tokenVersion) {
+      return res.status(401).json({
+        success: false,
+        message: 'User session invalid',
+        code: 'SESSION_INVALID'
+      });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account deactivated',
+        code: 'ACCOUNT_DEACTIVATED'
+      });
+    }
+
+    // Attach user to request with security context
+    req.user = {
+      ...user,
+      _id: user._id.toString(), // Convert to string for consistency
+      permissions: user.roles?.flatMap(role => role.permissions) || []
+    };
+
+    // Security headers
+    res.set({
+      'X-Authenticated-User': user._id,
+      'X-Authenticated-Roles': user.roles?.join(',') || 'user'
+    });
+
+    next();
   } catch (error) {
-    return null;
-  }
-}
+    // Enhanced error handling
+    let status = 401;
+    let message = 'Authentication failed';
+    let code = 'AUTH_FAILED';
 
-function validateTokenClaims(decoded) {
-  return decoded.userId && decoded.iat && decoded.tokenVersion !== undefined;
-}
-
-async function validateUserSession(decoded) {
-  const user = await User.findById(decoded.userId)
-    .select('-password -refreshToken')
-    .lean();
-
-  return user?.tokenVersion === decoded.tokenVersion ? user : null;
-}
-
-function attachUserToRequest(req, res, user) {
-  req.user = {
-    ...user,
-    _id: user._id.toString(),
-    permissions: user.roles?.flatMap(role => role.permissions) || []
-  };
-
-  // Security headers
-  res.set({
-    'X-Authenticated-User': user._id,
-    'X-Authenticated-Roles': user.roles?.join(',') || 'user',
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY'
-  });
-}
-
-function sendAuthError(res, message, code, status = 401) {
-  return res.status(status).json({
-    success: false,
-    message,
-    code,
-    docs: process.env.API_DOCS_URL + '/authentication'
-  });
-}
-
-function handleAuthError(error, res) {
-  let status = 401;
-  let message = 'Authentication failed';
-  let code = 'AUTH_FAILED';
-
-  switch (error.name) {
-    case 'TokenExpiredError':
+    if (error.name === 'TokenExpiredError') {
       message = 'Session expired';
       code = 'SESSION_EXPIRED';
-      break;
-    case 'JsonWebTokenError':
+    } else if (error.name === 'JsonWebTokenError') {
       message = 'Invalid token';
       code = 'TOKEN_INVALID';
-      break;
-    case 'NotBeforeError':
+    } else if (error.name === 'NotBeforeError') {
       message = 'Token not active';
       code = 'TOKEN_INACTIVE';
       status = 403;
-      break;
-    default:
+    } else {
       status = 500;
       message = 'Authentication error';
       code = 'AUTH_ERROR';
       console.error('Authentication middleware error:', error);
-  }
-
-  const response = {
-    success: false,
-    message,
-    code
-  };
-
-  if (process.env.NODE_ENV === 'development') {
-    response.detail = error.message;
-    response.stack = error.stack;
-  }
-
-  res.status(status).json(response);
-}
-
-// Middleware for role-based access
-export const roleMiddleware = (requiredRoles = []) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return sendAuthError(res, 'Authentication required', 'AUTH_REQUIRED');
     }
 
-    const hasRole = requiredRoles.some(role => 
-      req.user.roles?.includes(role) || 
-      req.user.isAdmin
-    );
-
-    if (!hasRole) {
-      return sendAuthError(res, 'Insufficient permissions', 'FORBIDDEN', 403);
-    }
-
-    next();
-  };
+    res.status(status).json({
+      success: false,
+      message,
+      code,
+      ...(process.env.NODE_ENV === 'development' && { detail: error.message })
+    });
+  }
 };
 
-// Middleware for permission-based access
-export const permissionMiddleware = (requiredPermissions = []) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return sendAuthError(res, 'Authentication required', 'AUTH_REQUIRED');
-    }
-
-    const hasPermission = requiredPermissions.every(permission => 
-      req.user.permissions?.includes(permission) ||
-      req.user.isAdmin
-    );
-
-    if (!hasPermission) {
-      return sendAuthError(res, 'Insufficient permissions', 'FORBIDDEN', 403);
-    }
-
-    next();
-  };
-};
-
-// Admin-specific middleware
 export const adminMiddleware = (req, res, next) => {
   if (!req.user?.isAdmin) {
-    return sendAuthError(
-      res,
-      'Administrator privileges required',
-      'ADMIN_REQUIRED',
-      403
-    );
+    return res.status(403).json({ 
+      success: false,
+      message: 'Administrator privileges required',
+      code: 'ADMIN_REQUIRED',
+      requiredPermissions: ['admin.access'],
+      userPermissions: req.user?.permissions || []
+    });
   }
   next();
 };
 
-// Token management utilities
-export const revokeToken = (token) => {
-  const ttl = parseInt(process.env.JWT_EXPIRE || '3600000', 10);
-  tokenBlacklist.set(token, true);
-  
-  setTimeout(() => {
-    tokenBlacklist.delete(token);
-  }, ttl);
-};
-
-export const revokeAllTokensForUser = async (userId) => {
-  await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
-};
-
-export const generateToken = (user) => {
-  return jwt.sign(
-    {
-      userId: user._id,
-      tokenVersion: user.tokenVersion
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: process.env.JWT_EXPIRE || '1h',
-      issuer: process.env.JWT_ISSUER || 'your-app-name',
-      audience: process.env.JWT_AUDIENCE || 'your-app-client'
+export const roleMiddleware = (requiredRoles = []) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      });
     }
+
+    const hasRole = requiredRoles.some(role => 
+      req.user.roles?.includes(role) || 
+      req.user.isAdmin // Admins bypass role checks
+    );
+
+    if (!hasRole) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions',
+        code: 'FORBIDDEN',
+        requiredRoles,
+        userRoles: req.user.roles || []
+      });
+    }
+
+    next();
+  };
+};
+
+export const permissionMiddleware = (requiredPermissions = []) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      });
+    }
+
+    const hasPermission = requiredPermissions.every(permission => 
+      req.user.permissions?.includes(permission) ||
+      req.user.isAdmin // Admins bypass permission checks
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions',
+        code: 'FORBIDDEN',
+        requiredPermissions,
+        userPermissions: req.user.permissions || []
+      });
+    }
+
+    next();
+  };
+};
+
+// Token revocation utility
+export const revokeToken = (token) => {
+  tokenBlacklist.add(token);
+  setTimeout(() => tokenBlacklist.delete(token), 
+    parseInt(process.env.JWT_EXPIRE || '3600000', 10)
   );
 };
-
 export default authMiddleware;

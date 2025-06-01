@@ -1,396 +1,840 @@
-import { useState, useRef } from 'react';
-import { 
-  FiUpload, FiDownload, FiTrash2, FiMove, 
-  FiType, FiImage, FiScissors, FiLayers,
-  FiRotateCw 
-} from 'react-icons/fi';
-import { FaArrowsAltH } from 'react-icons/fa';
-import { ChromePicker } from 'react-color';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Stage, Layer, Image as KonvaImage, Rect, Transformer, Text as KonvaText, Group, Line, Circle, Arrow, Path, RegularPolygon } from 'react-konva';
+import { useCart } from '../context/CartContext';
 
-const CustomizationTool = () => {
-  const [activeTool, setActiveTool] = useState('text');
-  const [designElements, setDesignElements] = useState([]);
+const AdvancedCustomizationTool = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const stageRef = useRef(null);
+  const transformerRef = useRef(null);
+  const [image, setImage] = useState(null);
+  
+  // Get product data from location state
+  const { productData } = location.state || {};
+  const product = productData || {
+    id: 1,
+    title: 'Custom Product',
+    price: 29.99,
+    img: 'https://via.placeholder.com/800x1000?text=Product+Preview'
+  };
+
+  // Tool states
+  const [selectedTool, setSelectedTool] = useState('select');
+  const [elements, setElements] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [tempElement, setTempElement] = useState(null);
   const [selectedElement, setSelectedElement] = useState(null);
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const fileInputRef = useRef(null);
+  const [textValue, setTextValue] = useState('');
+  const [textColor, setTextColor] = useState('#000000');
+  const [brushSize, setBrushSize] = useState(5);
+  const [brushColor, setBrushColor] = useState('#000000');
+  const [cropCoords, setCropCoords] = useState(null);
+  const [cutPath, setCutPath] = useState([]);
+  const [isCutting, setIsCutting] = useState(false);
+  const [filter, setFilter] = useState('none');
+  const [rotation, setRotation] = useState(0);
+  const [opacity, setOpacity] = useState(100);
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
+  const [saturation, setSaturation] = useState(100);
+  const [blur, setBlur] = useState(0);
+  const [mask, setMask] = useState(null);
+  const [eraserSize, setEraserSize] = useState(20);
 
-  // Product options
-  const product = {
-    name: "Premium Performance T-Shirt",
-    colors: [
-      '#FFFFFF', '#000000', '#FF0000', '#0000FF', '#00FF00',
-      '#FFA500', '#800080', '#FFFF00', '#FFC0CB', '#A52A2A',
-      '#008080', '#000080', '#808080', '#C0C0C0', '#FFD700'
-    ],
-    sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'],
-    basePrice: 29.99
-  };
-
-  // Available tools
-  const tools = [
-    { id: 'text', name: 'Text', icon: <FiType /> },
-    { id: 'image', name: 'Image', icon: <FiImage /> },
-    { id: 'move', name: 'Move', icon: <FiMove /> },
-    { id: 'cut', name: 'Cut', icon: <FiScissors /> },
-    { id: 'layer', name: 'Layer', icon: <FiLayers /> },
-    { id: 'rotate', name: 'Rotate', icon: <FiRotateCw /> },
-    { id: 'flip', name: 'Flip', icon: <FaArrowsAltH /> },
-    { id: 'delete', name: 'Delete', icon: <FiTrash2 /> }
-  ];
-
-  // Add text element
-  const addTextElement = () => {
-    const newElement = {
-      id: Date.now(),
-      type: 'text',
-      content: 'Your Text Here',
-      color: '#000000',
-      fontSize: 24,
-      fontFamily: 'Arial',
-      position: { x: 50, y: 50 },
-      rotation: 0,
-      zIndex: designElements.length,
-      isFlipped: false
+  // Load the base image
+  useEffect(() => {
+    const img = new window.Image();
+    img.src = product.img;
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      setImage(img);
+      saveHistory([], img);
     };
-    setDesignElements([...designElements, newElement]);
-    setSelectedElement(newElement.id);
+  }, [product.img]);
+
+  // Update transformer when selection changes
+  useEffect(() => {
+    if (selectedTool === 'select' && transformerRef.current && selectedElement) {
+      transformerRef.current.nodes([selectedElement]);
+      transformerRef.current.getLayer().batchDraw();
+    } else if (transformerRef.current) {
+      transformerRef.current.nodes([]);
+    }
+  }, [selectedElement, selectedTool]);
+
+  // Save current state to history
+  const saveHistory = (newElements, newImage = image) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push({ elements: newElements, image: newImage });
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
   };
 
-  // Handle image upload
-  const handleImageUpload = (e) => {
+  // Undo functionality
+  const undo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      const state = history[newIndex];
+      setImage(state.image);
+      setElements(state.elements);
+    }
+  };
+
+  // Redo functionality
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      const state = history[newIndex];
+      setImage(state.image);
+      setElements(state.elements);
+    }
+  };
+
+  // Handle stage mouse down
+  const handleMouseDown = (e) => {
+    const stage = e.target.getStage();
+    const pointerPos = stage.getPointerPosition();
+
+    if (selectedTool === 'select') {
+      const clickedElement = stage.getIntersection(pointerPos);
+      setSelectedElement(clickedElement);
+      return;
+    }
+
+    if (selectedTool === 'crop') {
+      setCropCoords({
+        x: pointerPos.x,
+        y: pointerPos.y,
+        width: 0,
+        height: 0
+      });
+      return;
+    }
+
+    if (selectedTool === 'cut') {
+      setIsCutting(true);
+      setCutPath([pointerPos.x, pointerPos.y]);
+      return;
+    }
+
+    if (selectedTool === 'brush') {
+      setTempElement({
+        tool: 'brush',
+        points: [pointerPos.x, pointerPos.y],
+        color: brushColor,
+        size: brushSize
+      });
+      return;
+    }
+
+    if (selectedTool === 'eraser') {
+      setTempElement({
+        tool: 'eraser',
+        points: [pointerPos.x, pointerPos.y],
+        size: eraserSize
+      });
+      return;
+    }
+
+    if (selectedTool === 'text') {
+      const newText = {
+        tool: 'text',
+        x: pointerPos.x,
+        y: pointerPos.y,
+        text: textValue,
+        fontSize: 20,
+        fill: textColor,
+        draggable: true
+      };
+      setElements([...elements, newText]);
+      saveHistory([...elements, newText]);
+      return;
+    }
+
+    // For shape tools
+    setTempElement({
+      tool: selectedTool,
+      x: pointerPos.x,
+      y: pointerPos.y,
+      width: 0,
+      height: 0,
+      fill: '#FF0000',
+      stroke: '#000000',
+      strokeWidth: 2,
+      draggable: true
+    });
+  };
+
+  // Handle stage mouse move
+  const handleMouseMove = (e) => {
+    if (!tempElement && !isCutting && !cropCoords) return;
+
+    const stage = e.target.getStage();
+    const pointerPos = stage.getPointerPosition();
+
+    if (isCutting) {
+      setCutPath([...cutPath, pointerPos.x, pointerPos.y]);
+      return;
+    }
+
+    if (tempElement?.tool === 'brush' || tempElement?.tool === 'eraser') {
+      setTempElement({
+        ...tempElement,
+        points: [...tempElement.points, pointerPos.x, pointerPos.y]
+      });
+      return;
+    }
+
+    if (selectedTool === 'crop' && cropCoords) {
+      setCropCoords({
+        ...cropCoords,
+        width: pointerPos.x - cropCoords.x,
+        height: pointerPos.y - cropCoords.y
+      });
+      return;
+    }
+
+    if (tempElement) {
+      setTempElement({
+        ...tempElement,
+        width: pointerPos.x - tempElement.x,
+        height: pointerPos.y - tempElement.y
+      });
+    }
+  };
+
+  // Handle stage mouse up
+  const handleMouseUp = () => {
+    if (isCutting) {
+      applyCut();
+      setIsCutting(false);
+      return;
+    }
+
+    if (!tempElement && !cropCoords) return;
+
+    if (tempElement) {
+      if ((tempElement.tool === 'brush' || tempElement.tool === 'eraser') && tempElement.points.length > 2) {
+        setElements([...elements, tempElement]);
+        saveHistory([...elements, tempElement]);
+      } else if (tempElement.tool !== 'brush' && tempElement.tool !== 'eraser') {
+        setElements([...elements, tempElement]);
+        saveHistory([...elements, tempElement]);
+      }
+    }
+
+    if (selectedTool === 'crop' && cropCoords) {
+      applyCrop();
+    }
+
+    setTempElement(null);
+  };
+
+  // Apply crop to image
+  const applyCrop = () => {
+    if (!cropCoords || !image) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Calculate actual crop coordinates (handles negative width/height)
+    const x = cropCoords.width < 0 ? cropCoords.x + cropCoords.width : cropCoords.x;
+    const y = cropCoords.height < 0 ? cropCoords.y + cropCoords.height : cropCoords.y;
+    const width = Math.abs(cropCoords.width);
+    const height = Math.abs(cropCoords.height);
+
+    // Set canvas dimensions to crop size
+    canvas.width = width;
+    canvas.height = height;
+    
+    // Draw the cropped portion
+    ctx.drawImage(
+      image,
+      x, y, width, height, // source rectangle
+      0, 0, width, height  // destination rectangle
+    );
+    
+    // Create new image from cropped canvas
+    const newImage = new window.Image();
+    newImage.src = canvas.toDataURL();
+    newImage.onload = () => {
+      setImage(newImage);
+      saveHistory(elements, newImage);
+      setCropCoords(null);
+    };
+  };
+
+  // Apply cut path to image
+  const applyCut = () => {
+    if (cutPath.length < 6 || !image) return; // Need at least 3 points to form a shape
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    
+    // Draw original image
+    ctx.drawImage(image, 0, 0);
+    
+    // Create clipping path
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.moveTo(cutPath[0], cutPath[1]);
+    
+    for (let i = 2; i < cutPath.length; i += 2) {
+      ctx.lineTo(cutPath[i], cutPath[i + 1]);
+    }
+    
+    ctx.closePath();
+    ctx.fill();
+    
+    // Create new image from cut canvas
+    const newImage = new window.Image();
+    newImage.src = canvas.toDataURL();
+    newImage.onload = () => {
+      setImage(newImage);
+      saveHistory(elements, newImage);
+      setCutPath([]);
+    };
+  };
+
+  // Apply mask to image
+  const applyMask = () => {
+    if (!mask || !image) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    
+    // Draw original image
+    ctx.drawImage(image, 0, 0);
+    
+    // Apply mask
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(mask, 0, 0);
+    
+    // Create new image from masked canvas
+    const newImage = new window.Image();
+    newImage.src = canvas.toDataURL();
+    newImage.onload = () => {
+      setImage(newImage);
+      saveHistory(elements, newImage);
+    };
+  };
+
+  // Apply filter to image
+  const applyFilter = () => {
+    if (!image) return;
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    
+    ctx.filter = `
+      brightness(${brightness}%)
+      contrast(${contrast}%)
+      saturate(${saturation}%)
+      blur(${blur}px)
+    `;
+    ctx.drawImage(image, 0, 0);
+    
+    if (filter === 'grayscale') {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+        data[i] = avg;
+        data[i + 1] = avg;
+        data[i + 2] = avg;
+      }
+      ctx.putImageData(imageData, 0, 0);
+    } else if (filter === 'sepia') {
+      ctx.fillStyle = 'rgba(112, 66, 20, 0.3)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (filter === 'invert') {
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 255 - data[i];
+        data[i + 1] = 255 - data[i + 1];
+        data[i + 2] = 255 - data[i + 2];
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+    
+    const newImage = new window.Image();
+    newImage.src = canvas.toDataURL();
+    newImage.onload = () => {
+      setImage(newImage);
+      saveHistory(elements, newImage);
+    };
+  };
+
+  // Rotate image
+  const rotateImage = (degrees) => {
+    if (!image) return;
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Adjust canvas size to fit rotated image
+    const rad = degrees * Math.PI / 180;
+    const sin = Math.abs(Math.sin(rad));
+    const cos = Math.abs(Math.cos(rad));
+    canvas.width = image.height * sin + image.width * cos;
+    canvas.height = image.height * cos + image.width * sin;
+    
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(rad);
+    ctx.drawImage(image, -image.width / 2, -image.height / 2);
+    
+    const newImage = new window.Image();
+    newImage.src = canvas.toDataURL();
+    newImage.onload = () => {
+      setImage(newImage);
+      saveHistory(elements, newImage);
+      setRotation(degrees);
+    };
+  };
+
+  // Handle mask upload
+  const handleMaskUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const newElement = {
-          id: Date.now(),
-          type: 'image',
-          src: event.target.result,
-          width: 200,
-          height: 200,
-          position: { x: 50, y: 50 },
-          rotation: 0,
-          zIndex: designElements.length,
-          isFlipped: false
+        const img = new window.Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          setMask(img);
         };
-        setDesignElements([...designElements, newElement]);
-        setSelectedElement(newElement.id);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // Delete element
-  const deleteElement = () => {
-    if (selectedElement) {
-      setDesignElements(designElements.filter(el => el.id !== selectedElement));
-      setSelectedElement(null);
+  // Render elements based on their type
+  const renderElement = (element, index) => {
+    switch (element.tool) {
+      case 'rectangle':
+        return (
+          <Rect
+            key={index}
+            x={element.x}
+            y={element.y}
+            width={element.width}
+            height={element.height}
+            fill={element.fill}
+            stroke={element.stroke}
+            strokeWidth={element.strokeWidth}
+            draggable={element.draggable}
+            onClick={() => setSelectedElement(element)}
+          />
+        );
+      case 'circle':
+        return (
+          <Circle
+            key={index}
+            x={element.x}
+            y={element.y}
+            radius={Math.max(element.width, element.height) / 2}
+            fill={element.fill}
+            stroke={element.stroke}
+            strokeWidth={element.strokeWidth}
+            draggable={element.draggable}
+            onClick={() => setSelectedElement(element)}
+          />
+        );
+      case 'line':
+        return (
+          <Line
+            key={index}
+            points={[element.x, element.y, element.x + element.width, element.y + element.height]}
+            stroke={element.stroke}
+            strokeWidth={element.strokeWidth}
+            draggable={element.draggable}
+            onClick={() => setSelectedElement(element)}
+          />
+        );
+      case 'arrow':
+        return (
+          <Arrow
+            key={index}
+            points={[element.x, element.y, element.x + element.width, element.y + element.height]}
+            stroke={element.stroke}
+            strokeWidth={element.strokeWidth}
+            fill={element.stroke}
+            draggable={element.draggable}
+            pointerLength={10}
+            pointerWidth={10}
+            onClick={() => setSelectedElement(element)}
+          />
+        );
+      case 'brush':
+        return (
+          <Line
+            key={index}
+            points={element.points}
+            stroke={element.color}
+            strokeWidth={element.size}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.1}
+            globalCompositeOperation="source-over"
+            onClick={() => setSelectedElement(element)}
+          />
+        );
+      case 'eraser':
+        return (
+          <Line
+            key={index}
+            points={element.points}
+            stroke="white"
+            strokeWidth={element.size}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.1}
+            globalCompositeOperation="destination-out"
+            onClick={() => setSelectedElement(element)}
+          />
+        );
+      case 'text':
+        return (
+          <KonvaText
+            key={index}
+            x={element.x}
+            y={element.y}
+            text={element.text}
+            fontSize={element.fontSize}
+            fill={element.fill}
+            draggable={element.draggable}
+            onClick={() => setSelectedElement(element)}
+          />
+        );
+      default:
+        return null;
     }
-  };
-
-  // Cut element
-  const cutElement = () => {
-    if (selectedElement) {
-      const element = designElements.find(el => el.id === selectedElement);
-      if (element) {
-        deleteElement();
-        console.log("Element cut:", element);
-      }
-    }
-  };
-
-  // Rotate element
-  const rotateElement = (degrees = 90) => {
-    if (selectedElement) {
-      setDesignElements(designElements.map(el => 
-        el.id === selectedElement 
-          ? {...el, rotation: (el.rotation + degrees) % 360} 
-          : el
-      ));
-    }
-  };
-
-  // Flip element
-  const flipElement = () => {
-    if (selectedElement) {
-      setDesignElements(designElements.map(el => 
-        el.id === selectedElement 
-          ? {...el, isFlipped: !el.isFlipped} 
-          : el
-      ));
-    }
-  };
-
-  // Change layer order
-  const changeLayer = (direction = 'up') => {
-    if (selectedElement) {
-      const elements = [...designElements];
-      const index = elements.findIndex(el => el.id === selectedElement);
-      
-      if (direction === 'up' && index < elements.length - 1) {
-        [elements[index], elements[index + 1]] = [elements[index + 1], elements[index]];
-      } else if (direction === 'down' && index > 0) {
-        [elements[index], elements[index - 1]] = [elements[index - 1], elements[index]];
-      }
-      
-      const updated = elements.map((el, i) => ({...el, zIndex: i}));
-      setDesignElements(updated);
-    }
-  };
-
-  // Calculate total price
-  const calculateTotal = () => {
-    return product.basePrice.toFixed(2);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Design Your Sportswear</h1>
-          <div className="flex items-center space-x-4">
-            <span className="text-lg font-medium">${calculateTotal()}</span>
-            <button className="bg-black text-white px-6 py-2 rounded-md hover:bg-gray-800 transition">
-              Add to Cart
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">Advanced Customization Tool</h1>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Canvas Area */}
+        <div className="lg:col-span-3 bg-white p-4 rounded-lg shadow-lg">
+          <div className="border-2 border-gray-300 rounded-md overflow-hidden">
+            <Stage
+              ref={stageRef}
+              width={800}
+              height={800}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+            >
+              <Layer>
+                {/* Base Image with filters */}
+                {image && (
+                  <Group
+                    opacity={opacity / 100}
+                    rotation={rotation}
+                  >
+                    <KonvaImage
+                      image={image}
+                      width={800}
+                      height={800}
+                    />
+                  </Group>
+                )}
+                
+                {/* Crop Rectangle */}
+                {cropCoords && (
+                  <Rect
+                    x={cropCoords.x}
+                    y={cropCoords.y}
+                    width={cropCoords.width}
+                    height={cropCoords.height}
+                    stroke="red"
+                    strokeWidth={2}
+                    dash={[5, 5]}
+                    fill="rgba(0,0,0,0.2)"
+                  />
+                )}
+
+                {/* Cut Path */}
+                {isCutting && cutPath.length > 0 && (
+                  <Line
+                    points={cutPath}
+                    stroke="red"
+                    strokeWidth={2}
+                    tension={0.5}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                )}
+
+                {/* Render all elements */}
+                {elements.map((element, index) => renderElement(element, index))}
+
+                {/* Render temporary element (while drawing) */}
+                {tempElement && renderElement(tempElement, 'temp')}
+
+                {/* Transformer for selected elements */}
+                <Transformer
+                  ref={transformerRef}
+                  boundBoxFunc={(oldBox, newBox) => {
+                    // Limit resize to keep proportions
+                    if (newBox.width < 5 || newBox.height < 5) {
+                      return oldBox;
+                    }
+                    return newBox;
+                  }}
+                />
+              </Layer>
+            </Stage>
+          </div>
+
+          {/* Canvas Controls */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              onClick={undo}
+              disabled={historyIndex <= 0}
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+            >
+              Undo
+            </button>
+            <button
+              onClick={redo}
+              disabled={historyIndex >= history.length - 1}
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+            >
+              Redo
+            </button>
+            <button
+              onClick={() => {
+                setElements([]);
+                saveHistory([]);
+              }}
+              className="px-3 py-1 bg-red-500 text-white rounded"
+            >
+              Clear All
             </button>
           </div>
         </div>
-      </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Toolbar */}
-        <div className="bg-white p-6 rounded-lg shadow-sm lg:col-span-1">
-          <h2 className="text-xl font-semibold mb-6">Design Tools</h2>
+        {/* Tools Panel */}
+        <div className="lg:col-span-1 bg-white p-4 rounded-lg shadow-lg">
+          <h2 className="text-xl font-semibold mb-4">Tools</h2>
           
-          <div className="grid grid-cols-4 lg:grid-cols-2 gap-2 mb-6">
-            {tools.map(tool => (
+          {/* Tool Selection */}
+          <div className="grid grid-cols-4 gap-2 mb-6">
+            {['select', 'brush', 'eraser', 'text', 'rectangle', 'circle', 'line', 'arrow', 'crop', 'cut'].map((tool) => (
               <button
-                key={tool.id}
-                onClick={() => {
-                  setActiveTool(tool.id);
-                  if (tool.id === 'rotate') rotateElement();
-                  if (tool.id === 'flip') flipElement();
-                }}
-                className={`flex flex-col items-center justify-center p-3 rounded-md ${
-                  activeTool === tool.id ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-gray-100'
-                }`}
+                key={tool}
+                onClick={() => setSelectedTool(tool)}
+                className={`p-2 rounded ${selectedTool === tool ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                title={tool.charAt(0).toUpperCase() + tool.slice(1)}
               >
-                <span className="text-xl mb-1">{tool.icon}</span>
-                <span className="text-xs">{tool.name}</span>
+                {tool === 'select' && '✏️'}
+                {tool === 'brush' && '🖌️'}
+                {tool === 'eraser' && '🧽'}
+                {tool === 'text' && '🔤'}
+                {tool === 'rectangle' && '⬜'}
+                {tool === 'circle' && '⭕'}
+                {tool === 'line' && '📏'}
+                {tool === 'arrow' && '➡️'}
+                {tool === 'crop' && '✂️'}
+                {tool === 'cut' && '🔪'}
               </button>
             ))}
           </div>
 
-          {activeTool === 'text' && (
-            <div className="space-y-4">
-              <button 
-                onClick={addTextElement}
-                className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition"
-              >
-                Add Text
-              </button>
-              {selectedElement && designElements.find(el => el.id === selectedElement)?.type === 'text' && (
-                <div className="space-y-4 mt-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Text Content</label>
-                    <input 
-                      type="text" 
-                      value={designElements.find(el => el.id === selectedElement).content}
-                      onChange={(e) => {
-                        const updated = designElements.map(el => 
-                          el.id === selectedElement ? {...el, content: e.target.value} : el
-                        );
-                        setDesignElements(updated);
-                      }}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-                  <div className="relative">
-                    <label className="block text-sm font-medium mb-1">Color</label>
-                    <div 
-                      className="w-full h-10 border rounded cursor-pointer"
-                      style={{ backgroundColor: designElements.find(el => el.id === selectedElement).color }}
-                      onClick={() => setShowColorPicker(!showColorPicker)}
-                    />
-                    {showColorPicker && (
-                      <div className="absolute z-10 mt-1">
-                        <ChromePicker
-                          color={designElements.find(el => el.id === selectedElement).color}
-                          onChangeComplete={(color) => {
-                            const updated = designElements.map(el => 
-                              el.id === selectedElement ? {...el, color: color.hex} : el
-                            );
-                            setDesignElements(updated);
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
+          {/* Tool Options */}
+          <div className="space-y-4">
+            {selectedTool === 'text' && (
+              <div>
+                <h3 className="font-medium mb-2">Text Options</h3>
+                <input
+                  type="text"
+                  value={textValue}
+                  onChange={(e) => setTextValue(e.target.value)}
+                  placeholder="Enter text"
+                  className="w-full p-2 border rounded"
+                />
+                <input
+                  type="color"
+                  value={textColor}
+                  onChange={(e) => setTextColor(e.target.value)}
+                  className="w-full mt-2"
+                />
+              </div>
+            )}
+
+            {(selectedTool === 'brush' || selectedTool === 'eraser') && (
+              <div>
+                <h3 className="font-medium mb-2">
+                  {selectedTool === 'brush' ? 'Brush' : 'Eraser'} Options
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span>Size:</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    value={selectedTool === 'brush' ? brushSize : eraserSize}
+                    onChange={(e) =>
+                      selectedTool === 'brush'
+                        ? setBrushSize(parseInt(e.target.value))
+                        : setEraserSize(parseInt(e.target.value))
+                    }
+                    className="flex-1"
+                  />
                 </div>
-              )}
-            </div>
-          )}
-
-          {activeTool === 'image' && (
-            <div>
-              <button 
-                onClick={() => fileInputRef.current.click()}
-                className="w-full flex items-center justify-center space-x-2 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition"
-              >
-                <FiUpload />
-                <span>Upload Image</span>
-              </button>
-              <input 
-                type="file" 
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                className="hidden"
-              />
-            </div>
-          )}
-
-          {activeTool === 'cut' && (
-            <button 
-              onClick={cutElement}
-              disabled={!selectedElement}
-              className={`w-full flex items-center justify-center space-x-2 py-2 rounded-md transition ${
-                selectedElement ? 'bg-yellow-600 text-white hover:bg-yellow-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              <FiScissors />
-              <span>Cut Selected</span>
-            </button>
-          )}
-
-          {activeTool === 'layer' && selectedElement && (
-            <div className="space-y-2">
-              <button 
-                onClick={() => changeLayer('up')}
-                className="w-full flex items-center justify-center space-x-2 bg-gray-200 text-gray-700 py-2 rounded-md hover:bg-gray-300 transition"
-              >
-                <span>Bring Forward</span>
-              </button>
-              <button 
-                onClick={() => changeLayer('down')}
-                className="w-full flex items-center justify-center space-x-2 bg-gray-200 text-gray-700 py-2 rounded-md hover:bg-gray-300 transition"
-              >
-                <span>Send Backward</span>
-              </button>
-            </div>
-          )}
-
-          {activeTool === 'delete' && (
-            <button 
-              onClick={deleteElement}
-              disabled={!selectedElement}
-              className={`w-full flex items-center justify-center space-x-2 py-2 rounded-md transition ${
-                selectedElement ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              <FiTrash2 />
-              <span>Delete Selected</span>
-            </button>
-          )}
-        </div>
-
-        {/* Design Canvas */}
-        <div className="lg:col-span-2">
-          <div 
-            className="relative bg-white rounded-lg shadow-sm overflow-hidden"
-            style={{ 
-              height: '600px', 
-              backgroundImage: 'url(https://images.unsplash.com/photo-1529374255404-311a2a4f1fd9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80)', 
-              backgroundSize: 'cover' 
-            }}
-          >
-            {[...designElements].sort((a, b) => a.zIndex - b.zIndex).map(element => (
-              <div 
-                key={element.id}
-                onClick={() => setSelectedElement(element.id)}
-                className={`absolute cursor-move ${selectedElement === element.id ? 'ring-2 ring-indigo-500' : ''}`}
-                style={{
-                  left: `${element.position.x}px`,
-                  top: `${element.position.y}px`,
-                  transform: `rotate(${element.rotation}deg) ${element.isFlipped ? 'scaleX(-1)' : ''}`,
-                  ...(element.type === 'text' ? {
-                    color: element.color,
-                    fontSize: `${element.fontSize}px`,
-                    fontFamily: element.fontFamily,
-                    fontWeight: 'bold',
-                    textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
-                  } : {})
-                }}
-              >
-                {element.type === 'text' ? (
-                  element.content
-                ) : (
-                  <img 
-                    src={element.src} 
-                    alt="Custom design" 
-                    style={{ 
-                      width: `${element.width}px`, 
-                      height: `${element.height}px`,
-                      filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))'
-                    }}
-                    className="object-contain"
+                {selectedTool === 'brush' && (
+                  <input
+                    type="color"
+                    value={brushColor}
+                    onChange={(e) => setBrushColor(e.target.value)}
+                    className="w-full mt-2"
                   />
                 )}
               </div>
-            ))}
-          </div>
-        </div>
+            )}
 
-        {/* Product Options */}
-        <div className="bg-white p-6 rounded-lg shadow-sm lg:col-span-1">
-          <h2 className="text-xl font-semibold mb-6">Product Options</h2>
-          
-          <div className="space-y-6">
+            {/* Image Adjustment Options */}
             <div>
-              <h3 className="font-medium mb-3">Color</h3>
-              <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto p-2">
-                {product.colors.map(color => (
-                  <button
-                    key={color}
-                    className="w-8 h-8 rounded-full border-2 border-gray-200 hover:border-gray-400 transition-transform hover:scale-110"
-                    style={{ backgroundColor: color }}
-                    title={color}
+              <h3 className="font-medium mb-2">Image Adjustments</h3>
+              <div className="space-y-2">
+                <div>
+                  <label className="block">Opacity: {opacity}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={opacity}
+                    onChange={(e) => setOpacity(e.target.value)}
+                    className="w-full"
                   />
-                ))}
+                </div>
+                <div>
+                  <label className="block">Rotation: {rotation}°</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={rotation}
+                    onChange={(e) => rotateImage(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block">Brightness: {brightness}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    value={brightness}
+                    onChange={(e) => setBrightness(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block">Contrast: {contrast}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    value={contrast}
+                    onChange={(e) => setContrast(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block">Saturation: {saturation}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    value={saturation}
+                    onChange={(e) => setSaturation(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block">Blur: {blur}px</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="20"
+                    value={blur}
+                    onChange={(e) => setBlur(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="none">No Filter</option>
+                  <option value="grayscale">Grayscale</option>
+                  <option value="sepia">Sepia</option>
+                  <option value="invert">Invert</option>
+                </select>
+                <button
+                  onClick={applyFilter}
+                  className="w-full py-2 bg-blue-500 text-white rounded"
+                >
+                  Apply Filters
+                </button>
               </div>
             </div>
 
+            {/* Mask Upload */}
             <div>
-              <h3 className="font-medium mb-3">Size</h3>
-              <div className="grid grid-cols-3 gap-2">
-                {product.sizes.map(size => (
-                  <button
-                    key={size}
-                    className="py-2 border border-gray-200 rounded-md hover:border-gray-400 hover:bg-gray-50 transition"
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
+              <h3 className="font-medium mb-2">Mask</h3>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleMaskUpload}
+                className="w-full text-sm"
+              />
+              {mask && (
+                <button
+                  onClick={applyMask}
+                  className="w-full mt-2 py-2 bg-blue-500 text-white rounded"
+                >
+                  Apply Mask
+                </button>
+              )}
             </div>
 
-            <div>
-              <h3 className="font-medium mb-3">Quantity</h3>
-              <div className="flex items-center border rounded-md w-32">
-                <button className="px-3 py-2 border-r hover:bg-gray-100">-</button>
-                <span className="flex-1 text-center">1</span>
-                <button className="px-3 py-2 border-l hover:bg-gray-100">+</button>
-              </div>
+            {/* Save/Export Options */}
+            <div className="pt-4 border-t">
+              <button
+                onClick={() => {
+                  // Save current design to cart
+                  const dataURL = stageRef.current.toDataURL();
+                  // You would typically use your cart context here
+                  alert('Design saved!');
+                }}
+                className="w-full py-2 bg-green-500 text-white rounded mb-2"
+              >
+                Save Design
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="w-full py-2 bg-gray-500 text-white rounded"
+              >
+                Back to Products
+              </button>
             </div>
-
-            <button className="w-full bg-black text-white py-3 rounded-md hover:bg-gray-800 transition shadow-md">
-              Add to Cart - ${calculateTotal()}
-            </button>
-
-            <button className="w-full flex items-center justify-center space-x-2 py-3 border border-black rounded-md hover:bg-gray-100 transition">
-              <FiDownload />
-              <span>Save Design</span>
-            </button>
           </div>
         </div>
       </div>
@@ -398,4 +842,4 @@ const CustomizationTool = () => {
   );
 };
 
-export default CustomizationTool;
+export default AdvancedCustomizationTool;
