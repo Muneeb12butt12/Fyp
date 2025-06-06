@@ -9,7 +9,7 @@ import Checkout from "./Pages/Checkout";
 import Test from "./Pages/Test";
 import ForgotPassword from "./Pages/ForgotPassword.JSX";
 import VerifyCode from "./Pages/VerifyCode";
-import ResetPassword from "./Pages/ResetPassword";
+import SetNewPassword from "./Pages/SetNewPassword";
 import Product from "./Pages/Product";
 import AboutUs from "./Pages/AboutUs";
 import Cart from "./Pages/Cart";
@@ -21,8 +21,7 @@ import OrderDetailsPage from "./Pages/OrderDetailsPage";
 import AddProduct from "./Pages/AddProduct";
 import SellerDashboard from "./Pages/SellerDashboard";
 import AdminDashboard from "./Pages/AdminDashboard ";
-import Profile from "./Pages/Profile";
-import BuyerDashboard from "./Pages/BuyerDashboard";
+import MessengerPage from "./Pages/MessengerPage";
 const App = () => {
   return (
     <CartProvider>
@@ -37,7 +36,7 @@ const App = () => {
 
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verifycode" element={<VerifyCode />} />
-          <Route path="/ResetPassword" element={<ResetPassword />} />
+          <Route path="/set-password" element={<SetNewPassword />} />
           // In your router configuration
           <Route path="/order-details" element={<OrderDetailsPage />} />
           <Route path="/product" element={<Product />} />
@@ -49,9 +48,8 @@ const App = () => {
           <Route path="/add-product" element={<AddProduct />} />
           <Route path="/seller-dashboard" element={<SellerDashboard />} />
           <Route path="/AdminDashboard" element={<AdminDashboard />} />
-          <Route path="/Profile" element={<Profile />} />
-          <Route path="/BuyerDashboard" element={<BuyerDashboard />} />
-          
+          <Route path="/MessengerPage" element={<MessengerPage />} />
+
         </Routes>
        
       

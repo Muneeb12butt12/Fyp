@@ -2,24 +2,16 @@ import express from 'express';
 import { 
   login, 
   signup, 
-  checkExistingData, 
-  getProfile, 
-  updateProfile 
+  checkExistingData  // Import the new controller
 } from '../controllers/auth.js';
-import { authMiddleware } from '../middleware/authMiddleware.js';
-import { uploadProfilePicture } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
-// ... (keep your existing registration and login routes)
+// Registration and Login
+router.post('/register', signup); 
+router.post('/login', login);
 
-// Profile routes
-router.get('/profile', authMiddleware, getProfile);
-router.put(
-  '/profile', 
-  authMiddleware, 
-  uploadProfilePicture, 
-  updateProfile
-);
+// New endpoint to check if data exists
+router.post('/check-data', checkExistingData);
 
 export default router;

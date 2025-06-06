@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { saveCustomization, uploadImage } from '../api/customizationApi';
+import { toast } from 'react-toastify';
+// import LoadingSpinner from '../components/LoadingSpinner';
 
 const ColorizableImage = ({ src, color, className, filter, pattern }) => {
   const canvasRef = useRef(null);
@@ -181,6 +184,8 @@ const CustomizationPage = () => {
   const [selectedFabric, setSelectedFabric] = useState(initialFabric || fabricOptions[0]);
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'none');
   const [selectedPattern, setSelectedPattern] = useState(initialPattern || patternOptions[0]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Logo options
   const logoOptions = [
@@ -189,53 +194,6 @@ const CustomizationPage = () => {
     { id: 3, name: 'Athletic Star', image: 'https://via.placeholder.com/200x200?text=Athletic+Star', price: 6.99 },
     { id: 4, name: 'Custom Upload', image: 'https://via.placeholder.com/200x200?text=Upload', price: 8.99 },
   ];
-
-  // Size options with prices
-  const sizeOptions = [
-    { value: 'small', label: 'Small (+$0.00)', price: 0 },
-    { value: 'medium', label: 'Medium (+$1.00)', price: 1.00 },
-    { value: 'large', label: 'Large (+$2.00)', price: 2.00 },
-    { value: 'xlarge', label: 'X-Large (+$3.00)', price: 3.00 },
-  ];
-
-  // Text position options
-  const textPositionOptions = [
-    { value: 'above-logo', label: 'Above Logo' },
-    { value: 'below-logo', label: 'Below Logo' },
-    { value: 'left-logo', label: 'Left of Logo' },
-    { value: 'right-logo', label: 'Right of Logo' },
-    { value: 'no-logo', label: 'Text Only' },
-  ];
-
-  // Price calculation with proper number handling
-  useEffect(() => {
-    const basePrice = parseFloat(product.price) || 0;
-    let price = basePrice;
-    
-    // Add fabric cost
-    const fabric = fabricOptions.find(f => f.id === selectedFabric);
-    if (fabric) price += parseFloat(fabric.price) || 0;
-    
-    // Add logo cost
-    if (selectedLogo) price += parseFloat(selectedLogo.price) || 0;
-    
-    // Add logo size cost
-    const sizeOption = sizeOptions.find(option => option.value === logoSize);
-    if (sizeOption) price += parseFloat(sizeOption.price) || 0;
-    
-    // Add text cost
-    if (customText.trim() !== '') {
-      price += 2.99;
-      if (customText.length > 15) price += 1.99;
-    }
-    
-    // Add pattern cost
-    if (selectedPattern && selectedPattern.id !== 'none') {
-      price += parseFloat(selectedPattern.price) || 0;
-    }
-    
-    setTotalPrice((price * quantity).toFixed(2));
-  }, [product.price, selectedLogo, logoSize, customText, quantity, selectedFabric, selectedPattern]);
 
   // Draggable logo handlers
   const handleMouseDown = (e) => {
@@ -312,88 +270,134 @@ const CustomizationPage = () => {
     };
   }, [customText]);
 
+  // Price calculation with proper number handling
+  useEffect(() => {
+    const basePrice = parseFloat(product.price) || 0;
+    let price = basePrice;
+    
+    // Add fabric cost
+    const fabric = fabricOptions.find(f => f.id === selectedFabric);
+    if (fabric) price += parseFloat(fabric.price) || 0;
+    
+    // Add logo cost
+    if (selectedLogo) price += parseFloat(selectedLogo.price) || 0;
+    
+    // Add text cost
+    if (customText.trim() !== '') {
+      price += 2.99;
+      if (customText.length > 15) price += 1.99;
+    }
+    
+    // Add pattern cost
+    if (selectedPattern && selectedPattern.id !== 'none') {
+      price += parseFloat(selectedPattern.price) || 0;
+    }
+    
+    setTotalPrice((price * quantity).toFixed(2));
+  }, [product.price, selectedLogo, customText, quantity, selectedFabric, selectedPattern]);
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setIsLoading(true);
+      const uploadResponse = await uploadImage(file, 'logo');
+      
+      setSelectedLogo({
+        id: `custom-${Date.now()}`,
+        name: 'Custom Logo',
+        image: uploadResponse.url,
+        price: 8.99
+      });
+      setLogoPosition({ x: 50, y: 50 });
+    } catch (error) {
+      toast.error('Failed to upload logo');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePatternUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setIsLoading(true);
+      const uploadResponse = await uploadImage(file, 'pattern');
+      
+      setSelectedPattern({
+        id: `custom-${Date.now()}`,
+        name: 'Custom Pattern',
+        image: uploadResponse.url,
+        price: 9.99
+      });
+    } catch (error) {
+      toast.error('Failed to upload pattern');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSaveCustomization = async (e) => {
     e.preventDefault();
-    
-    const customizedProduct = {
-      ...product,
-      selectedColor,
-      selectedSize,
+    setIsLoading(true);
+
+    const customizationData = {
+      productId: product.id,
+      color: selectedColor,
+      size: selectedSize,
       quantity: parseInt(quantity) || 1,
-      selectedFabric,
-      selectedFilter,
-      selectedPattern,
-      customization: {
-        logo: selectedLogo,
-        position: `${logoPosition.x},${logoPosition.y}`,
-        size: logoSize,
-        text: customText,
-        textColor,
-        textPosition,
-        textCoords: `${textPositionCoords.x},${textPositionCoords.y}`,
-        basePrice: parseFloat(product.price) || 0,
-        finalPrice: totalPrice,
-        fabric: selectedFabric,
-        filter: selectedFilter,
-        pattern: selectedPattern
-      }
+      fabric: selectedFabric,
+      filter: selectedFilter,
+      pattern: selectedPattern,
+      logo: selectedLogo ? {
+        id: selectedLogo.id,
+        url: selectedLogo.image,
+        position: logoPosition,
+        size: logoSize
+      } : null,
+      text: customText ? {
+        content: customText,
+        color: textColor,
+        position: textPositionCoords
+      } : null,
+      basePrice: parseFloat(product.price) || 0,
+      finalPrice: totalPrice
     };
 
     try {
+      const response = await saveCustomization(customizationData);
+      
       if (location.state?.cartItem) {
         await updateCartItemCustomization(
           location.state.cartItem.id,
           selectedColor,
           selectedSize,
-          customizedProduct.customization,
+          customizationData,
           parseInt(quantity) || 1
         );
       } else {
-        await addCustomizedToCart(customizedProduct);
+        await addCustomizedToCart({
+          ...product,
+          ...customizationData
+        });
       }
       
       navigate('/Cart', { replace: true });
+      toast.success('Customization saved successfully!');
     } catch (error) {
       console.error('Error saving customization:', error);
-      alert('Failed to add to cart. Please try again.');
-    }
-  };
-
-  const handleLogoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setSelectedLogo({
-          id: 'custom-' + Date.now(),
-          name: 'Custom Logo',
-          image: event.target.result,
-          price: 8.99
-        });
-        setLogoPosition({ x: 50, y: 50 });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handlePatternUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setSelectedPattern({
-          id: 'custom-' + Date.now(),
-          name: 'Custom Pattern',
-          image: event.target.result,
-          price: 9.99
-        });
-      };
-      reader.readAsDataURL(file);
+      toast.error('Failed to save customization. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {isLoading && <LoadingSpinner />}
+      
       <h1 className="text-3xl font-bold mb-6">Customize Your {product.title}</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -608,6 +612,14 @@ const CustomizationPage = () => {
                   file:bg-black file:text-white
                   hover:file:bg-gray-800"
               />
+              {uploadProgress > 0 && uploadProgress < 100 && (
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-blue-600 h-2.5 rounded-full" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              )}
             </div>
           </div>
           
@@ -673,6 +685,14 @@ const CustomizationPage = () => {
                   file:bg-black file:text-white
                   hover:file:bg-gray-800"
               />
+              {uploadProgress > 0 && uploadProgress < 100 && (
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-blue-600 h-2.5 rounded-full" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              )}
             </div>
             
             {selectedLogo && (
@@ -683,11 +703,10 @@ const CustomizationPage = () => {
                   onChange={(e) => setLogoSize(e.target.value)}
                   className="w-full p-2 border rounded-md"
                 >
-                  {sizeOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                  <option value="small">Small (+$0.00)</option>
+                  <option value="medium">Medium (+$1.00)</option>
+                  <option value="large">Large (+$2.00)</option>
+                  <option value="xlarge">X-Large (+$3.00)</option>
                 </select>
               </div>
             )}
@@ -804,13 +823,16 @@ const CustomizationPage = () => {
               </button>
               <button
                 onClick={handleSaveCustomization}
-                className="flex-1 bg-black text-white px-8 py-3 rounded-md hover:bg-gray-800 transition-colors font-medium"
+                disabled={isLoading}
+                className={`flex-1 bg-black text-white px-8 py-3 rounded-md hover:bg-gray-800 transition-colors font-medium ${
+                  isLoading ? 'opacity-70 cursor-not-allowed' : ''
+                }`}
               >
                 {location.state?.cartItem ? 'Update Customization' : 'Add to Cart'} - ${totalPrice}
               </button>
             </div>
             <button
-              onClick={() => navigate('/CustomizationTool', { 
+              onClick={() => navigate('/cart', { 
                 state: { 
                   productData: product,
                   selectedColor,
