@@ -1,199 +1,87 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js'; // Fixed from Order.js
-import Order from '../models/Order.js'; // Keep existing Order import
-import { UnauthenticatedError } from '../errors/index.js';
+import User from '../models/User.js';
 
-const tokenBlacklist = new Set();
-
-// MAIN AUTH MIDDLEWARE (unchanged functionality)
-export const protect = async (req, res, next) => {
+const protect = async (req, res, next) => {
   try {
-    const token = 
-      req.headers.authorization?.split(' ')[1] || 
-      req.cookies?.token || 
-      req.signedCookies?.token;
+    // 1. Get token from header
+    let token;
+    
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith('Bearer')
+    ) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies?.token) {
+      token = req.cookies.token;
+    }
 
     if (!token) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authentication required',
-        code: 'AUTH_REQUIRED',
-        docs: process.env.API_DOCS_URL + '/authentication'
-      });
-    }
-
-    if (tokenBlacklist.has(token)) {
       return res.status(401).json({
         success: false,
-        message: 'Token revoked',
-        code: 'TOKEN_REVOKED'
+        message: 'Not authorized to access this route'
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
-      algorithms: ['HS256'],
-      issuer: process.env.JWT_ISSUER || 'your-app-name',
-      audience: process.env.JWT_AUDIENCE || 'your-app-client',
-      maxAge: process.env.JWT_EXPIRE || '1h'
-    });
+    // 2. Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Existing user lookup logic
-    const user = await User.findById(decoded.userId)
-      .select('-password -refreshToken')
-      .lean();
+    // 3. Find user - Removed token check since we're not storing tokens in user document
+    const user = await User.findById(decoded.id).select('-password');
 
-    if (!user || user.tokenVersion !== decoded.tokenVersion) {
+    if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'User session invalid',
-        code: 'SESSION_INVALID'
+        message: 'User belonging to this token no longer exists'
       });
     }
 
-    if (!user.isActive) {
-      return res.status(403).json({
+    // 4. Check if user changed password after token was issued
+    if (user.changedPasswordAfter(decoded.iat)) {
+      return res.status(401).json({
         success: false,
-        message: 'Account deactivated',
-        code: 'ACCOUNT_DEACTIVATED'
+        message: 'User recently changed password. Please login again.'
       });
     }
 
-    // Preserve all existing request attachments
-    req.user = {
-      ...user,
-      _id: user._id.toString(),
-      permissions: user.roles?.flatMap(role => role.permissions) || []
-    };
-
-    res.set({
-      'X-Authenticated-User': user._id,
-      'X-Authenticated-Roles': user.roles?.join(',') || 'user'
-    });
-
+    // 5. Attach user to request
+    req.user = user;
     next();
   } catch (error) {
-    // Existing error handling
-    let status = 401;
-    let message = 'Authentication failed';
-    let code = 'AUTH_FAILED';
+    console.error('Authentication error:', error);
+
+    // Handle specific JWT errors
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token. Please login again.'
+      });
+    }
 
     if (error.name === 'TokenExpiredError') {
-      message = 'Session expired';
-      code = 'SESSION_EXPIRED';
-    } else if (error.name === 'JsonWebTokenError') {
-      message = 'Invalid token';
-      code = 'TOKEN_INVALID';
-    } else if (error.name === 'NotBeforeError') {
-      message = 'Token not active';
-      code = 'TOKEN_INACTIVE';
-      status = 403;
-    } else {
-      status = 500;
-      message = 'Authentication error';
-      console.error('Authentication middleware error:', error);
+      return res.status(401).json({
+        success: false,
+        message: 'Session expired. Please login again.',
+        isTokenExpired: true
+      });
     }
 
-    res.status(status).json({
+    // Handle other errors
+    res.status(401).json({
       success: false,
-      message,
-      code,
-      ...(process.env.NODE_ENV === 'development' && { detail: error.message })
+      message: 'Not authorized to access this route'
     });
   }
 };
 
-// NEW: Socket.io Auth (additional to existing)
-export const socketAuth = (socket, next) => {
-  try {
-    const token = socket.handshake.auth?.token;
-    
-    if (!token || tokenBlacklist.has(token)) {
-      return next(new Error('Authentication error'));
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.userId = decoded.userId;
+const admin = (req, res, next) => {
+  if (req.user && (req.user.role === 'admin' || req.user.isAdmin)) {
     next();
-  } catch (error) {
-    next(new Error('Authentication error'));
-  }
-};
-export const adminMiddleware = (req, res, next) => {
-  if (!req.user?.isAdmin) {
-    return res.status(403).json({ 
+  } else {
+    res.status(403).json({
       success: false,
-      message: 'Administrator privileges required',
-      code: 'ADMIN_REQUIRED',
-      requiredPermissions: ['admin.access'],
-      userPermissions: req.user?.permissions || []
+      message: 'Not authorized as admin'
     });
   }
-  next();
 };
 
-export const roleMiddleware = (requiredRoles = []) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        code: 'AUTH_REQUIRED'
-      });
-    }
-
-    const hasRole = requiredRoles.some(role => 
-      req.user.roles?.includes(role) || 
-      req.user.isAdmin // Admins bypass role checks
-    );
-
-    if (!hasRole) {
-      return res.status(403).json({
-        success: false,
-        message: 'Insufficient permissions',
-        code: 'FORBIDDEN',
-        requiredRoles,
-        userRoles: req.user.roles || []
-      });
-    }
-
-    next();
-  };
-};
-
-export const permissionMiddleware = (requiredPermissions = []) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        code: 'AUTH_REQUIRED'
-      });
-    }
-
-    const hasPermission = requiredPermissions.every(permission => 
-      req.user.permissions?.includes(permission) ||
-      req.user.isAdmin // Admins bypass permission checks
-    );
-
-    if (!hasPermission) {
-      return res.status(403).json({
-        success: false,
-        message: 'Insufficient permissions',
-        code: 'FORBIDDEN',
-        requiredPermissions,
-        userPermissions: req.user.permissions || []
-      });
-    }
-
-    next();
-  };
-};
-
-// Token revocation utility
-export const revokeToken = (token) => {
-  tokenBlacklist.add(token);
-  setTimeout(() => tokenBlacklist.delete(token), 
-    parseInt(process.env.JWT_EXPIRE || '3600000', 10)
-  );
-};
-export default protect;
+export { protect, admin };

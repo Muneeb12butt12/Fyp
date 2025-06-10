@@ -25,29 +25,36 @@ const Profile = () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) {
-          navigate('/login');
+          navigate('/signin');
           return;
         }
 
-        const { data } = await axios.get('http://localhost:5000/api/auth/profile', {
+        const response = await axios.get('http://localhost:5000/api/profile', {
           headers: {
             Authorization: `Bearer ${token}`
           }
         });
 
-        setUser(data.user);
-        setFormData({
-          firstName: data.user.firstName || '',
-          lastName: data.user.lastName || '',
-          email: data.user.email || '',
-          phone: data.user.phone || '',
-          address: data.user.address || '',
-          profilePicture: null,
-          previewImage: data.user.profilePicture || ''
-        });
+        if (response.data && response.data.user) {
+          setUser(response.data.user);
+          setFormData({
+            firstName: response.data.user.firstName || '',
+            lastName: response.data.user.lastName || '',
+            email: response.data.user.email || '',
+            phone: response.data.user.phone || '',
+            address: response.data.user.address || '',
+            profilePicture: null,
+            previewImage: response.data.user.profilePicture 
+              ? `http://localhost:5000${response.data.user.profilePicture}` 
+              : ''
+          });
+        }
       } catch (error) {
         console.error('Error fetching profile:', error);
-        toast.error('Failed to load profile data');
+        toast.error(error.response?.data?.message || 'Failed to load profile data');
+        if (error.response?.status === 401) {
+          navigate('/login');
+        }
       }
     };
 
@@ -62,6 +69,16 @@ const Profile = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Validate file type and size
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please upload an image file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast.error('File size should be less than 5MB');
+        return;
+      }
+      
       setFormData(prev => ({
         ...prev,
         profilePicture: file,
@@ -76,45 +93,61 @@ const Profile = () => {
 
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
       const formDataToSend = new FormData();
-      
-      // Append all fields to formData
       formDataToSend.append('firstName', formData.firstName);
       formDataToSend.append('lastName', formData.lastName);
       formDataToSend.append('phone', formData.phone);
       formDataToSend.append('address', formData.address);
+      
       if (formData.profilePicture) {
         formDataToSend.append('profilePicture', formData.profilePicture);
       }
 
-      const { data } = await axios.put(
-        'http://localhost:5000/api/auth/profile',
-        formDataToSend,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          }
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
         }
+      };
+
+      // CORRECTED ENDPOINT: Changed from /api/auth/profile to /api/profile
+      const response = await axios.put(
+        'http://localhost:5000/api/profile',
+        formDataToSend,
+        config
       );
 
-      toast.success('Profile updated successfully!');
-      setUser(data.user);
-      setEditMode(false);
-      // Update local storage if email changed
-      if (data.user.email !== user.email) {
-        localStorage.setItem('user', JSON.stringify(data.user));
+      if (response.data && response.data.user) {
+        toast.success('Profile updated successfully!');
+        setUser(response.data.user);
+        setEditMode(false);
+        
+        // Update preview image URL if a new one was uploaded
+        if (response.data.user.profilePicture) {
+          setFormData(prev => ({
+            ...prev,
+            previewImage: `http://localhost:5000${response.data.user.profilePicture}`
+          }));
+        }
       }
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error(error.response?.data?.message || 'Failed to update profile');
+      if (error.response?.status === 401) {
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleChangePassword = () => {
-    navigate('/change-password');
+    navigate('/forgot-password');
   };
 
   if (!user) {

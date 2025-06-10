@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
-import { createOrder } from '../api/orderApi';
+// Assuming you have a user context
+import { useUser } from '../context/UserContext';
 const Checkout = () => {
   const { cart, cartTotal, clearCart } = useCart();
+  const { user } = useUser(); // Get user info if available
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
-    country: '',
-    zipCode: '',
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    address: user?.address?.street || '',
+    city: user?.address?.city || '',
+    country: user?.address?.country || '',
+    zipCode: user?.address?.zipCode || '',
     paymentMethod: 'credit-card',
     cardNumber: '',
     cardExpiry: '',
@@ -26,6 +28,7 @@ const Checkout = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderDetails, setOrderDetails] = useState(null);
+  const [error, setError] = useState(null);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -34,61 +37,79 @@ const Checkout = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
-  
+    
     try {
+      const token = localStorage.getItem('token') || cookies.get('token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }      if (!token) {
+        throw new Error('Please login to checkout');
+      }
+  
+      const shippingPrice = formData.shippingMethod === 'standard' ? 0 : 9.99;
+      const totalPrice = cartTotal + shippingPrice;
+  
       const response = await fetch('http://localhost:5000/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          ...formData,
-          items: cart,
-          cartTotal
-        }),
+          orderItems: cart.map(item => ({
+            product: item._id || item.id.toString(),
+            name: item.title,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.img,
+            selectedColor: item.selectedColor,
+            selectedSize: item.selectedSize,
+            customization: item.customization
+          })),
+          shippingAddress: {
+            address: formData.address,
+            city: formData.city,
+            postalCode: formData.zipCode,
+            country: formData.country
+          },
+          paymentMethod: formData.paymentMethod,
+          itemsPrice: cartTotal,
+          shippingPrice,
+          totalPrice
+        })
       });
   
       if (!response.ok) {
-        throw new Error('Failed to process order');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Checkout failed');
       }
   
       const data = await response.json();
-      
-      const orderData = {
-        orderId: data.order.orderId,
-        customer: formData,
-        items: cart,
-        total: formData.shippingMethod === 'express' ? cartTotal + 9.99 : cartTotal,
-        date: new Date().toISOString(),
-        status: 'Processing',
-        estimatedDelivery: data.order.estimatedDelivery
-      };
-  
-      setOrderDetails(orderData);
-      setOrderSuccess(true);
       clearCart();
+      setOrderDetails(data);
+      setOrderSuccess(true);
   
-      // Redirect to seller dashboard with order data
-      navigate('/seller-dashboard', { 
-        state: { 
-          newOrder: {
-            ...orderData,
-            customer: `${formData.firstName} ${formData.lastName}`,
-            amount: orderData.total
-          }
-        } 
-      });
     } catch (error) {
       console.error('Checkout error:', error);
-      alert('There was an error processing your order. Please try again.');
+      setError(
+        error.message.includes('token') || error.message.includes('auth')
+          ? 'Session expired. Please login again.'
+          : error.message
+      );
     } finally {
       setIsProcessing(false);
     }
   };
+  if (orderSuccess && orderDetails) {
+    return <OrderConfirmation 
+      order={orderDetails} 
+      onContinueShopping={() => navigate('/')} 
+    />;
+  }
 
   if (cart.length === 0 && !orderSuccess) {
     return (
@@ -103,11 +124,15 @@ const Checkout = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 min-h-screen">
       <h1 className="text-3xl font-bold mb-8">Checkout</h1>
-
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Customer Information */}
         <div>

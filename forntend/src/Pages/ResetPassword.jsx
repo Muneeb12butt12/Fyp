@@ -30,7 +30,7 @@ const ResetPassword = () => {
 
       if (data.success) {
         toast.success('Password reset successfully!');
-        navigate('/login');
+        navigate('/signin');
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Error resetting password');

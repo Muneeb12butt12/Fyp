@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./Pages/Home";
 import SignIn from "./Pages/SignIn";
 import SignUp from "./Pages/SignUp";
@@ -22,11 +22,16 @@ import AddProduct from "./Pages/AddProduct";
 import SellerDashboard from "./Pages/SellerDashboard";
 import AdminDashboard from "./Pages/AdminDashboard ";
 import MessengerPage from "./Pages/MessengerPage";
+import Profile from "./Pages/Profile";
+import { UserProvider } from "./context/UserContext";
+import ErrorBoundary from "./components/ErrorBoundary";
+import AdminLogin from "./Pages/AdminLogin";
 const App = () => {
   return (
     <CartProvider>
-     
+     <UserProvider>
         <Routes>
+        
           <Route path="/" element={<Home />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
@@ -44,15 +49,20 @@ const App = () => {
           <Route path="/cart" element={<Cart />} />
           <Route path="/CustomizationPage" element={<CustomizationPage />} />
           <Route path="/BlogPage" element={<BlogPage />} />
-          <Route path="/CustomizationTool" element={< CustomizationTool />} />
+          
+          <Route path="/CustomizationTool" element={ <ErrorBoundary>< CustomizationTool /></ErrorBoundary>} />
           <Route path="/add-product" element={<AddProduct />} />
           <Route path="/seller-dashboard" element={<SellerDashboard />} />
-          <Route path="/AdminDashboard" element={<AdminDashboard />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admindashboard" element={<AdminDashboard />} />
+      {/* Redirect /admin to /admin/dashboard or /admin/login */}
+      <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/MessengerPage" element={<MessengerPage />} />
+          <Route path="/Profile" element={<Profile />} />
 
         </Routes>
        
-      
+        </UserProvider>
     </CartProvider>
   );
 };

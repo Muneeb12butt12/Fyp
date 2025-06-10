@@ -45,7 +45,7 @@ const ForgotPassword = () => {
         <p className="mb-4">We've sent a password reset link to {email}</p>
         <div className="flex justify-between">
           <button
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/signin')}
             className="bg-gray-300 text-gray-800 py-2 px-4 rounded hover:bg-gray-400 transition"
           >
             Back to Login
@@ -91,7 +91,7 @@ const ForgotPassword = () => {
         </button>
       </form>
       <div className="mt-4 text-center">
-        <Link to="/login" className="text-blue-600 hover:underline">
+        <Link to="/signin" className="text-blue-600 hover:underline">
           Remember your password? Login here
         </Link>
       </div>

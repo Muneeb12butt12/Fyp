@@ -1,43 +1,96 @@
-
 import mongoose from 'mongoose';
 
-const orderSchema = new mongoose.Schema({
-  orderId: { type: String, required: true, unique: true },
-  customer: {
-    firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
-    email: { type: String, required: true },
-    phone: { type: String, required: true },
-    address: { type: String, required: true },
-    city: { type: String, required: true },
-    country: { type: String, required: true },
-    zipCode: { type: String, required: true },
-    paymentMethod: { type: String, required: true },
-    shippingMethod: { type: String, required: true }
+const orderItemSchema = new mongoose.Schema({
+  product: {
+    type: mongoose.Schema.Types.Mixed,
+    required: true,
+    ref: 'Product'
   },
-  items: [{
-    productId: { type: String, required: true },
-    title: { type: String, required: true },
-    price: { type: Number, required: true },
-    quantity: { type: Number, default: 1 },
-    selectedColor: { type: String },
-    selectedSize: { type: String },
-    img: { type: String },
-    customization: {
-      text: { type: String },
-      logo: {
-        image: { type: String },
-        position: { type: String }
-      }
+  name: { type: String, required: true },
+  price: { type: Number, required: true },
+  quantity: { type: Number, required: true },
+  image: { type: String, required: true },
+  color: { type: String },
+  size: { type: String },
+  customization: {
+    text: { type: String },
+    logo: {
+      image: { type: String },
+      position: { type: String }
     }
-  }],
-  subtotal: { type: Number, required: true },
-  shippingCost: { type: Number, required: true },
-  total: { type: Number, required: true },
-  status: { type: String, default: 'Processing' },
-  date: { type: Date, default: Date.now },
-  estimatedDelivery: { type: Date }
+  }
+}, { _id: false });
+
+const shippingAddressSchema = new mongoose.Schema({
+  address: { type: String, required: true },
+  city: { type: String, required: true },
+  postalCode: { type: String, required: true },
+  country: { type: String, required: true }
+}, { _id: false });
+
+const orderSchema = new mongoose.Schema({
+  orderId: {
+    type: String,
+    unique: true,
+    required: true,
+    default: () => `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  orderItems: [orderItemSchema],
+  shippingAddress: shippingAddressSchema,
+  paymentMethod: {
+    type: String,
+    required: true,
+    enum: ['credit-card', 'paypal', 'stripe']
+  },
+  itemsPrice: {
+    type: Number,
+    required: true,
+    default: 0.0
+  },
+  shippingPrice: {
+    type: Number,
+    required: true,
+    default: 0.0
+  },
+  totalPrice: {
+    type: Number,
+    required: true,
+    default: 0.0
+  },
+  isPaid: {
+    type: Boolean,
+    required: true,
+    default: false
+  },
+  paidAt: {
+    type: Date
+  },
+  isDelivered: {
+    type: Boolean,
+    required: true,
+    default: false
+  },
+  deliveredAt: {
+    type: Date
+  }
+}, {
+  timestamps: true,
+  autoIndex: false // Prevent automatic index creation
 });
 
+// Create index manually with sparse option
+orderSchema.index({ orderId: 1 }, { unique: true, sparse: true });
+
 const Order = mongoose.model('Order', orderSchema);
+
+// Create indexes when application starts
+Order.createIndexes().catch(err => {
+  console.log('Index creation error:', err.message);
+});
+
 export default Order;

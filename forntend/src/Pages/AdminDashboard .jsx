@@ -11,6 +11,25 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState({
+    users: true,
+    products: true,
+    orders: true
+  });
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const authStatus = localStorage.getItem("adminAuthenticated") === "true";
+      setIsAuthenticated(authStatus);
+      if (!authStatus) {
+        navigate("/admin/login");
+      }
+    };
+    checkAuth();
+  }, [navigate]);
+
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchTerm, setSearchTerm] = useState("");
   const [users, setUsers] = useState([]);
@@ -23,66 +42,170 @@ const AdminDashboard = () => {
     revenue: 0
   });
 
-  // Mock data - replace with API calls
+  // Fetch data functions
+  const fetchUsers = async () => {
+    try {
+      setLoading(prev => ({ ...prev, users: true }));
+      const response = await fetch('/api/admin/users', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch users');
+      
+      const data = await response.json();
+      setUsers(data);  // Changed from data.users to just data
+      setAnalytics(prev => ({
+        ...prev,
+        totalUsers: data.length
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(prev => ({ ...prev, users: false }));
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(prev => ({ ...prev, products: true }));
+      const response = await fetch('/api/admin/products', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch products');
+      }
+      
+      const data = await response.json();
+      setProducts(data.products);
+      setAnalytics(prev => ({
+        ...prev,
+        totalProducts: data.products.length
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(prev => ({ ...prev, products: false }));
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(prev => ({ ...prev, orders: true }));
+      const response = await fetch('/api/admin/orders', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      
+      const data = await response.json();
+      setOrders(data);  // Changed from data.orders to just data
+      setAnalytics(prev => ({
+        ...prev,
+        totalOrders: data.length,
+        revenue: data.reduce((sum, order) => sum + order.totalPrice, 0).toFixed(2)
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(prev => ({ ...prev, orders: false }));
+    }
+  };
+
   useEffect(() => {
-    // Fetch users
-    const mockUsers = [
-      { id: 1, name: "Admin User", email: "admin@example.com", role: "admin", status: "active" },
-      { id: 2, name: "Seller 1", email: "seller1@example.com", role: "seller", status: "active" },
-      { id: 3, name: "Buyer 1", email: "buyer1@example.com", role: "buyer", status: "active" },
-      { id: 4, name: "Suspended User", email: "suspended@example.com", role: "buyer", status: "suspended" }
-    ];
+    if (!isAuthenticated) return;
 
-    // Fetch products
-    const mockProducts = Array.from({ length: 10 }, (_, i) => ({
-      id: i + 1,
-      name: `Product ${i + 1}`,
-      price: (Math.random() * 100 + 20).toFixed(2),
-      stock: Math.floor(Math.random() * 100),
-      status: i % 3 === 0 ? "out_of_stock" : "in_stock"
-    }));
+    const fetchData = async () => {
+      await Promise.all([fetchUsers(), fetchProducts(), fetchOrders()]);
+    };
 
-    // Fetch orders
-    const mockOrders = Array.from({ length: 15 }, (_, i) => ({
-      id: `ORD${1000 + i}`,
-      customer: `Customer ${i + 1}`,
-      amount: (Math.random() * 500 + 50).toFixed(2),
-      status: ["pending", "shipped", "delivered", "cancelled"][Math.floor(Math.random() * 4)],
-      date: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
-    }));
-
-    setUsers(mockUsers);
-    setProducts(mockProducts);
-    setOrders(mockOrders);
-    setAnalytics({
-      totalUsers: mockUsers.length,
-      totalProducts: mockProducts.length,
-      totalOrders: mockOrders.length,
-      revenue: mockOrders.reduce((sum, order) => sum + parseFloat(order.amount), 0).toFixed(2)
-    });
-  }, []);
+    fetchData();
+  }, [isAuthenticated]);
 
   // Handle user suspension/reactivation
-  const toggleUserStatus = (userId) => {
-    setUsers(users.map(user => 
-      user.id === userId 
-        ? { ...user, status: user.status === "active" ? "suspended" : "active" } 
-        : user
-    ));
+  const toggleUserStatus = async (userId) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update user status');
+      }
+      
+      const updatedUser = await response.json();
+      setUsers(users.map(user => 
+        user._id === updatedUser._id ? updatedUser : user
+      ));
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   // Handle product deletion
-  const deleteProduct = (productId) => {
-    setProducts(products.filter(product => product.id !== productId));
+  const deleteProduct = async (productId) => {
+    try {
+      const response = await fetch(`/api/admin/products/${productId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete product');
+      }
+      
+      setProducts(products.filter(product => product._id !== productId));
+      setAnalytics(prev => ({
+        ...prev,
+        totalProducts: prev.totalProducts - 1
+      }));
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   // Handle order status update
-  const updateOrderStatus = (orderId, newStatus) => {
-    setOrders(orders.map(order => 
-      order.id === orderId 
-        ? { ...order, status: newStatus } 
-        : order
-    ));
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update order status');
+      }
+      
+      const updatedOrder = await response.json();
+      setOrders(orders.map(order => 
+        order._id === updatedOrder._id ? updatedOrder : order
+      ));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem("adminAuthenticated");
+    localStorage.removeItem("adminToken");
+    navigate("/admin/login");
   };
 
   // Filter data based on search term
@@ -96,8 +219,8 @@ const AdminDashboard = () => {
   );
 
   const filteredOrders = orders.filter(order => 
-    order.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    order.customer.toLowerCase().includes(searchTerm.toLowerCase())
+    order._id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (order.user && order.user.name && order.user.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   // Chart data
@@ -202,6 +325,13 @@ const AdminDashboard = () => {
             >
               <FaSignOutAlt className="mr-3" /> Back to Site
             </button>
+
+            <button 
+              onClick={handleLogout}
+              className="flex items-center w-full p-3 mb-2 rounded hover:bg-gray-700 transition-colors"
+            >
+              <FaSignOutAlt className="mr-3" /> Logout
+            </button>
           </nav>
         </div>
 
@@ -222,8 +352,28 @@ const AdminDashboard = () => {
             </div>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+              <p>{error}</p>
+              <button 
+                onClick={() => setError(null)}
+                className="mt-2 text-red-700 hover:text-red-900"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {(loading.users || loading.products || loading.orders) && activeTab !== "settings" && (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          )}
+
           {/* Dashboard Tab */}
-          {activeTab === "dashboard" && (
+          {activeTab === "dashboard" && !loading.users && !loading.products && !loading.orders && (
             <div>
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -273,10 +423,10 @@ const AdminDashboard = () => {
                     </thead>
                     <tbody>
                       {orders.slice(0, 5).map(order => (
-                        <tr key={order.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="py-3 px-4">{order.id}</td>
-                          <td className="py-3 px-4">{order.customer}</td>
-                          <td className="py-3 px-4">${order.amount}</td>
+                        <tr key={order._id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="py-3 px-4">{order._id.substring(0, 8)}...</td>
+                          <td className="py-3 px-4">{order.user?.name || 'Guest'}</td>
+                          <td className="py-3 px-4">${order.totalAmount.toFixed(2)}</td>
                           <td className="py-3 px-4">
                             <span className={`px-2 py-1 rounded-full text-xs ${
                               order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -287,7 +437,7 @@ const AdminDashboard = () => {
                               {order.status}
                             </span>
                           </td>
-                          <td className="py-3 px-4">{order.date}</td>
+                          <td className="py-3 px-4">{new Date(order.createdAt).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -298,13 +448,12 @@ const AdminDashboard = () => {
           )}
 
           {/* Users Tab */}
-          {activeTab === "users" && (
+          {activeTab === "users" && !loading.users && (
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-3 px-4">ID</th>
                       <th className="text-left py-3 px-4">Name</th>
                       <th className="text-left py-3 px-4">Email</th>
                       <th className="text-left py-3 px-4">Role</th>
@@ -314,8 +463,7 @@ const AdminDashboard = () => {
                   </thead>
                   <tbody>
                     {filteredUsers.map(user => (
-                      <tr key={user.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="py-3 px-4">{user.id}</td>
+                      <tr key={user._id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="py-3 px-4">{user.name}</td>
                         <td className="py-3 px-4">{user.email}</td>
                         <td className="py-3 px-4 capitalize">{user.role}</td>
@@ -328,7 +476,7 @@ const AdminDashboard = () => {
                         </td>
                         <td className="py-3 px-4">
                           <button 
-                            onClick={() => toggleUserStatus(user.id)}
+                            onClick={() => toggleUserStatus(user._id)}
                             className={`p-2 rounded-full transition-colors ${
                               user.status === 'active' ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200'
                             }`}
@@ -346,7 +494,7 @@ const AdminDashboard = () => {
           )}
 
           {/* Products Tab */}
-          {activeTab === "products" && (
+          {activeTab === "products" && !loading.products && (
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Product List</h3>
@@ -361,7 +509,6 @@ const AdminDashboard = () => {
                 <table className="min-w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-3 px-4">ID</th>
                       <th className="text-left py-3 px-4">Name</th>
                       <th className="text-left py-3 px-4">Price</th>
                       <th className="text-left py-3 px-4">Stock</th>
@@ -371,27 +518,27 @@ const AdminDashboard = () => {
                   </thead>
                   <tbody>
                     {filteredProducts.map(product => (
-                      <tr key={product.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="py-3 px-4">{product.id}</td>
+                      <tr key={product._id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="py-3 px-4">{product.name}</td>
-                        <td className="py-3 px-4">${product.price}</td>
+                        <td className="py-3 px-4">${product.price.toFixed(2)}</td>
                         <td className="py-3 px-4">{product.stock}</td>
                         <td className="py-3 px-4">
                           <span className={`px-2 py-1 rounded-full text-xs ${
-                            product.status === 'out_of_stock' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                            product.stock <= 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                           }`}>
-                            {product.status === 'out_of_stock' ? 'Out of Stock' : 'In Stock'}
+                            {product.stock <= 0 ? 'Out of Stock' : 'In Stock'}
                           </span>
                         </td>
                         <td className="py-3 px-4 flex space-x-2">
-                          <button 
+                          <Link
+                            to={`/admin/products/edit/${product._id}`}
                             className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors"
                             title="Edit Product"
                           >
                             <FaEdit />
-                          </button>
+                          </Link>
                           <button 
-                            onClick={() => deleteProduct(product.id)}
+                            onClick={() => deleteProduct(product._id)}
                             className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition-colors"
                             title="Delete Product"
                           >
@@ -407,7 +554,7 @@ const AdminDashboard = () => {
           )}
 
           {/* Orders Tab */}
-          {activeTab === "orders" && (
+          {activeTab === "orders" && !loading.orders && (
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
               <div className="overflow-x-auto">
                 <table className="min-w-full">
@@ -423,14 +570,14 @@ const AdminDashboard = () => {
                   </thead>
                   <tbody>
                     {filteredOrders.map(order => (
-                      <tr key={order.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="py-3 px-4">{order.id}</td>
-                        <td className="py-3 px-4">{order.customer}</td>
-                        <td className="py-3 px-4">${order.amount}</td>
+                      <tr key={order._id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="py-3 px-4">{order._id.substring(0, 8)}...</td>
+                        <td className="py-3 px-4">{order.user?.name || 'Guest'}</td>
+                        <td className="py-3 px-4">${order.totalAmount.toFixed(2)}</td>
                         <td className="py-3 px-4">
                           <select
                             value={order.status}
-                            onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                            onChange={(e) => updateOrderStatus(order._id, e.target.value)}
                             className={`px-2 py-1 rounded text-xs ${
                               order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                               order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
@@ -444,14 +591,15 @@ const AdminDashboard = () => {
                             <option value="cancelled">Cancelled</option>
                           </select>
                         </td>
-                        <td className="py-3 px-4">{order.date}</td>
+                        <td className="py-3 px-4">{new Date(order.createdAt).toLocaleDateString()}</td>
                         <td className="py-3 px-4">
-                          <button 
+                          <Link
+                            to={`/admin/orders/${order._id}`}
                             className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors"
                             title="View Details"
                           >
                             <FaEdit />
-                          </button>
+                          </Link>
                         </td>
                       </tr>
                     ))}

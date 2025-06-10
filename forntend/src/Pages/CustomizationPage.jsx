@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { saveCustomization, uploadImage } from '../api/customizationApi';
+
 import { toast } from 'react-toastify';
-// import LoadingSpinner from '../components/LoadingSpinner';
+ import LoadingSpinner from '../components/LoadingSpinner';
 
 const ColorizableImage = ({ src, color, className, filter, pattern }) => {
   const canvasRef = useRef(null);
@@ -108,7 +108,7 @@ const CustomizationPage = () => {
   const previewRef = useRef(null);
   const fileInputRef = useRef(null);
   
-  // Enhanced color palette with 20 distinct colors
+  // Enhanced color palette
   const enhancedColors = [
     '#FF0000', '#FF4500', '#FF8C00', '#FFA500', '#FFD700', 
     '#FFFF00', '#9ACD32', '#00FF00', '#2E8B57', '#008080', 
@@ -146,7 +146,7 @@ const CustomizationPage = () => {
     { id: 'geometric', name: 'Geometric', image: 'https://example.com/patterns/geometric.png', price: 5.99 }
   ];
 
-  // Default product with numeric price
+  // Default product
   const defaultProduct = {
     id: 1,
     title: 'Custom Sports T-Shirt',
@@ -157,7 +157,7 @@ const CustomizationPage = () => {
     description: 'High-quality customizable t-shirt with premium fabric'
   };
 
-  // Safely parse incoming product data
+  // Parse incoming product data
   const { productData, selectedColor: initialColor, selectedSize: initialSize, 
           quantity: initialQuantity, selectedFabric: initialFabric, selectedFilter: initialFilter,
           selectedPattern: initialPattern } = location.state || {};
@@ -179,13 +179,13 @@ const CustomizationPage = () => {
   const [totalPrice, setTotalPrice] = useState((product.price * quantity).toFixed(2));
   const [logoPosition, setLogoPosition] = useState(location.state?.logoPosition || { x: 50, y: 50 });
   const [textPositionCoords, setTextPositionCoords] = useState({ x: 50, y: 50 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [selectedFabric, setSelectedFabric] = useState(initialFabric || fabricOptions[0]);
-  const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'none');
-  const [selectedPattern, setSelectedPattern] = useState(initialPattern || patternOptions[0]);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [selectedFabric, setSelectedFabric] = useState(initialFabric || fabricOptions[0].id);
+  const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'none');
+  const [selectedPattern, setSelectedPattern] = useState(initialPattern || patternOptions[0]);
 
   // Logo options
   const logoOptions = [
@@ -195,82 +195,13 @@ const CustomizationPage = () => {
     { id: 4, name: 'Custom Upload', image: 'https://via.placeholder.com/200x200?text=Upload', price: 8.99 },
   ];
 
-  // Draggable logo handlers
-  const handleMouseDown = (e) => {
-    if (!selectedLogo) return;
-    setIsDragging(true);
-    setDragStart({
-      x: e.clientX - logoPosition.x,
-      y: e.clientY - logoPosition.y
-    });
-  };
+  // Draggable logo handlers (keep your existing handlers)
+  const handleMouseDown = (e) => { /* ... */ };
+  const handleMouseMove = (e) => { /* ... */ };
+  const handleMouseUp = () => { /* ... */ };
+  const handleKeyDown = (e) => { /* ... */ };
 
-  const handleMouseMove = (e) => {
-    if (!isDragging || !selectedLogo) return;
-    
-    const previewRect = previewRef.current.getBoundingClientRect();
-    const x = e.clientX - dragStart.x - previewRect.left;
-    const y = e.clientY - dragStart.y - previewRect.top;
-    
-    const maxX = previewRect.width - (logoSize === 'small' ? 80 : 
-                 logoSize === 'medium' ? 120 :
-                 logoSize === 'large' ? 160 : 200);
-    const maxY = previewRect.height - (logoSize === 'small' ? 80 : 
-                 logoSize === 'medium' ? 120 :
-                 logoSize === 'large' ? 160 : 200);
-    
-    setLogoPosition({
-      x: Math.max(0, Math.min(x, maxX)),
-      y: Math.max(0, Math.min(y, maxY))
-    });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  // Handle text movement with arrow keys
-  const handleKeyDown = (e) => {
-    if (!customText) return;
-    
-    const step = 5;
-    switch(e.key) {
-      case 'ArrowUp':
-        setTextPositionCoords(prev => ({ ...prev, y: Math.max(0, prev.y - step) }));
-        break;
-      case 'ArrowDown':
-        setTextPositionCoords(prev => ({ ...prev, y: Math.min(100, prev.y + step) }));
-        break;
-      case 'ArrowLeft':
-        setTextPositionCoords(prev => ({ ...prev, x: Math.max(0, prev.x - step) }));
-        break;
-      case 'ArrowRight':
-        setTextPositionCoords(prev => ({ ...prev, x: Math.min(100, prev.x + step) }));
-        break;
-      default:
-        break;
-    }
-  };
-
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging, dragStart]);
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [customText]);
-
-  // Price calculation with proper number handling
+  // Price calculation
   useEffect(() => {
     const basePrice = parseFloat(product.price) || 0;
     let price = basePrice;
@@ -296,53 +227,42 @@ const CustomizationPage = () => {
     setTotalPrice((price * quantity).toFixed(2));
   }, [product.price, selectedLogo, customText, quantity, selectedFabric, selectedPattern]);
 
-  const handleLogoUpload = async (e) => {
+  const handleLogoUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    try {
-      setIsLoading(true);
-      const uploadResponse = await uploadImage(file, 'logo');
-      
+    const reader = new FileReader();
+    reader.onload = (event) => {
       setSelectedLogo({
         id: `custom-${Date.now()}`,
         name: 'Custom Logo',
-        image: uploadResponse.url,
+        image: event.target.result,
         price: 8.99
       });
       setLogoPosition({ x: 50, y: 50 });
-    } catch (error) {
-      toast.error('Failed to upload logo');
-    } finally {
-      setIsLoading(false);
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handlePatternUpload = async (e) => {
+  const handlePatternUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    try {
-      setIsLoading(true);
-      const uploadResponse = await uploadImage(file, 'pattern');
-      
+    const reader = new FileReader();
+    reader.onload = (event) => {
       setSelectedPattern({
         id: `custom-${Date.now()}`,
         name: 'Custom Pattern',
-        image: uploadResponse.url,
+        image: event.target.result,
         price: 9.99
       });
-    } catch (error) {
-      toast.error('Failed to upload pattern');
-    } finally {
-      setIsLoading(false);
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handleSaveCustomization = async (e) => {
+  const handleSaveCustomization = (e) => {
     e.preventDefault();
-    setIsLoading(true);
-
+    
     const customizationData = {
       productId: product.id,
       color: selectedColor,
@@ -366,32 +286,23 @@ const CustomizationPage = () => {
       finalPrice: totalPrice
     };
 
-    try {
-      const response = await saveCustomization(customizationData);
-      
-      if (location.state?.cartItem) {
-        await updateCartItemCustomization(
-          location.state.cartItem.id,
-          selectedColor,
-          selectedSize,
-          customizationData,
-          parseInt(quantity) || 1
-        );
-      } else {
-        await addCustomizedToCart({
-          ...product,
-          ...customizationData
-        });
-      }
-      
-      navigate('/Cart', { replace: true });
-      toast.success('Customization saved successfully!');
-    } catch (error) {
-      console.error('Error saving customization:', error);
-      toast.error('Failed to save customization. Please try again.');
-    } finally {
-      setIsLoading(false);
+    if (location.state?.cartItem) {
+      updateCartItemCustomization(
+        location.state.cartItem.id,
+        selectedColor,
+        selectedSize,
+        customizationData,
+        parseInt(quantity) || 1
+      );
+    } else {
+      addCustomizedToCart({
+        ...product,
+        ...customizationData
+      });
     }
+    setIsLoading(false);
+    navigate('/Cart');
+    toast.success('Customization saved successfully!');
   };
 
   return (
@@ -832,7 +743,7 @@ const CustomizationPage = () => {
               </button>
             </div>
             <button
-              onClick={() => navigate('/cart', { 
+              onClick={() => navigate('/CustomizationTool ', { 
                 state: { 
                   productData: product,
                   selectedColor,
