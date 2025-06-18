@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Stage, Layer, Image as KonvaImage, Rect, Transformer, Text as KonvaText, Group, Line, Circle, Arrow } from 'react-konva';
+import { 
+  Stage, Layer, Image as KonvaImage, Rect, Transformer, Text as KonvaText, 
+  Group, Line, Circle, Arrow, Star, RegularPolygon, Path
+} from 'react-konva';
 import { useCart } from '../context/CartContext';
 
 const AdvancedCustomizationTool = () => {
@@ -51,26 +54,34 @@ const AdvancedCustomizationTool = () => {
   const [blur, setBlur] = useState(0);
   const [mask, setMask] = useState(null);
   const [shapeFillColor, setShapeFillColor] = useState('#FF0000');
-const [shapeStrokeColor, setShapeStrokeColor] = useState('#000000');
+  const [shapeStrokeColor, setShapeStrokeColor] = useState('#000000');
   const [eraserSize, setEraserSize] = useState(20);
   const [coloredRegions, setColoredRegions] = useState([]);
   const [regionColor, setRegionColor] = useState('#FF0000');
   const [regionOpacity, setRegionOpacity] = useState(50);
-  const [showShapes, setShowShapes] = useState(false); // New state for showing shapes
-useEffect(() => {
-  if (!transformerRef.current) return;
-  
-  if (selectedTool === 'select' && selectedElement) {
-    // Only update if the node is different
-    const nodes = transformerRef.current.nodes();
-    if (!nodes.includes(selectedElement)) {
-      transformerRef.current.nodes([selectedElement]);
-      transformerRef.current.getLayer().batchDraw();
-    }
-  } else {
-    transformerRef.current.nodes([]);
-  }
-}, [selectedElement, selectedTool]);
+  const [showShapes, setShowShapes] = useState(false);
+
+  // New tool states
+  const [showMagnifier, setShowMagnifier] = useState(false);
+  const [magnifierPosition, setMagnifierPosition] = useState({ x: 0, y: 0 });
+  const [zoomLevel, setZoomLevel] = useState(2);
+  const [showBeforeAfter, setShowBeforeAfter] = useState(false);
+  const [beforeAfterPosition, setBeforeAfterPosition] = useState(50);
+  const [originalImage, setOriginalImage] = useState(null);
+  const [polygonSides, setPolygonSides] = useState(5);
+  const [starPoints, setStarPoints] = useState(5);
+  const [starInnerRadius, setStarInnerRadius] = useState(30);
+  const [gradientType, setGradientType] = useState('linear');
+  const [gradientStartColor, setGradientStartColor] = useState('#FF0000');
+  const [gradientEndColor, setGradientEndColor] = useState('#0000FF');
+  const [textureImage, setTextureImage] = useState(null);
+  const [showGrid, setShowGrid] = useState(false);
+  const [gridSize, setGridSize] = useState(50);
+  const [cloneSource, setCloneSource] = useState(null);
+  const [isCloning, setIsCloning] = useState(false);
+  const [perspectivePoints, setPerspectivePoints] = useState(null);
+  const [isTransforming, setIsTransforming] = useState(false);
+
   // Load the base image
   useEffect(() => {
     setIsLoading(true);
@@ -82,11 +93,7 @@ useEffect(() => {
     
     img.onload = () => {
       setIsLoading(false);
-      // Calculate scale to fit 800x800 container
-      const scale = Math.min(
-        800 / img.width,
-        800 / img.height
-      );
+      const scale = Math.min(800 / img.width, 800 / img.height);
       
       setImage({
         img: img,
@@ -94,6 +101,14 @@ useEffect(() => {
         height: img.height * scale,
         scale: scale
       });
+      
+      // Save original image for before/after comparison
+      const original = new window.Image();
+      original.src = product.img;
+      original.onload = () => {
+        setOriginalImage(original);
+      };
+      
       saveHistory([], {
         img: img,
         width: img.width * scale,
@@ -105,7 +120,6 @@ useEffect(() => {
     img.onerror = () => {
       setIsLoading(false);
       setLoadError(true);
-      // Fallback to placeholder if main image fails
       const fallbackImg = new window.Image();
       fallbackImg.src = 'https://via.placeholder.com/800x800?text=Product+Image';
       fallbackImg.onload = () => {
@@ -128,7 +142,6 @@ useEffect(() => {
   // Update transformer when selection changes
   useEffect(() => {
     if (selectedTool === 'select' && transformerRef.current && selectedElement) {
-      // Make sure we're only transforming the actual element, not a copy
       transformerRef.current.nodes([selectedElement]);
       transformerRef.current.getLayer().batchDraw();
     } else if (transformerRef.current) {
@@ -239,7 +252,6 @@ useEffect(() => {
     }
 
     if (selectedTool === 'color-region') {
-      // Start a new colored region
       setTempElement({
         tool: 'color-region',
         points: [pointerPos.x, pointerPos.y],
@@ -249,13 +261,19 @@ useEffect(() => {
       return;
     }
 
+    if (selectedTool === 'clone') {
+      setCloneSource(pointerPos);
+      setIsCloning(true);
+      return;
+    }
+
     // For shape tools
     setTempElement({
       tool: selectedTool,
       x: pointerPos.x,
       y: pointerPos.y,
-      width: 1, // Start with minimum width
-      height: 1, // Start with minimum height
+      width: 1,
+      height: 1,
       fill: shapeFillColor,
       stroke: shapeStrokeColor,
       strokeWidth: 2,
@@ -265,13 +283,22 @@ useEffect(() => {
 
   // Handle stage mouse move
   const handleMouseMove = (e) => {
-    if (!tempElement && !isCutting && !cropCoords) return;
+    if (!tempElement && !isCutting && !cropCoords && !isCloning && !showMagnifier) return;
   
     const stage = e.target.getStage();
     const pointerPos = stage.getPointerPosition();
   
+    if (showMagnifier) {
+      setMagnifierPosition(pointerPos);
+    }
+  
     if (isCutting) {
       setCutPath([...cutPath, pointerPos.x, pointerPos.y]);
+      return;
+    }
+  
+    if (isCloning && cloneSource) {
+      applyCloneStamp(e);
       return;
     }
   
@@ -304,7 +331,6 @@ useEffect(() => {
     }
   };
 
-
   // Handle stage mouse up
   const handleMouseUp = () => {
     if (isCutting) {
@@ -313,11 +339,15 @@ useEffect(() => {
       return;
     }
   
+    if (isCloning) {
+      setIsCloning(false);
+      return;
+    }
+  
     if (!tempElement && !cropCoords) return;
   
     if (tempElement) {
       if ((tempElement.tool === 'brush' || tempElement.tool === 'eraser' || tempElement.tool === 'color-region')) {
-        // Only save if we have enough points (more than just the initial point)
         if (tempElement.points.length > 2) {
           const newElements = [...elements, tempElement];
           setElements(newElements);
@@ -330,6 +360,24 @@ useEffect(() => {
           fill: shapeFillColor,
           stroke: shapeStrokeColor
         };
+        
+        // Add special properties for specific shapes
+        if (tempElement.tool === 'polygon') {
+          newElement.sides = polygonSides;
+        }
+        
+        if (tempElement.tool === 'star') {
+          newElement.points = starPoints;
+          newElement.innerRadius = starInnerRadius;
+          newElement.outerRadius = Math.max(tempElement.width, tempElement.height) / 2;
+        }
+        
+        if (tempElement.tool === 'gradient') {
+          newElement.gradientType = gradientType;
+          newElement.startColor = gradientStartColor;
+          newElement.endColor = gradientEndColor;
+        }
+        
         const newElements = [...elements, newElement];
         setElements(newElements);
         saveHistory(newElements);
@@ -350,24 +398,20 @@ useEffect(() => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     
-    // Calculate actual crop coordinates (handles negative width/height)
     const x = cropCoords.width < 0 ? cropCoords.x + cropCoords.width : cropCoords.x;
     const y = cropCoords.height < 0 ? cropCoords.y + cropCoords.height : cropCoords.y;
     const width = Math.abs(cropCoords.width);
     const height = Math.abs(cropCoords.height);
 
-    // Set canvas dimensions to crop size
     canvas.width = width;
     canvas.height = height;
     
-    // Draw the cropped portion
     ctx.drawImage(
       image.img,
-      x, y, width, height, // source rectangle
-      0, 0, width, height  // destination rectangle
+      x, y, width, height,
+      0, 0, width, height
     );
     
-    // Create new image from cropped canvas
     const newImg = new window.Image();
     newImg.src = canvas.toDataURL();
     newImg.onload = () => {
@@ -397,10 +441,8 @@ useEffect(() => {
     canvas.width = image.width;
     canvas.height = image.height;
     
-    // Draw original image
     ctx.drawImage(image.img, 0, 0, image.width, image.height);
     
-    // Create clipping path
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
     ctx.moveTo(cutPath[0], cutPath[1]);
@@ -412,7 +454,6 @@ useEffect(() => {
     ctx.closePath();
     ctx.fill();
     
-    // Create new image from cut canvas
     const newImg = new window.Image();
     newImg.src = canvas.toDataURL();
     newImg.onload = () => {
@@ -437,10 +478,8 @@ useEffect(() => {
     canvas.width = image.width;
     canvas.height = image.height;
     
-    // Draw original image
     ctx.drawImage(image.img, 0, 0, image.width, image.height);
     
-    // Apply all colored regions
     ctx.globalCompositeOperation = 'source-atop';
     allRegions.forEach(region => {
       ctx.fillStyle = region.color;
@@ -456,7 +495,6 @@ useEffect(() => {
       ctx.fill();
     });
     
-    // Create new image with colored regions
     const newImg = new window.Image();
     newImg.src = canvas.toDataURL();
     newImg.onload = () => {
@@ -480,14 +518,11 @@ useEffect(() => {
     canvas.width = image.width;
     canvas.height = image.height;
     
-    // Draw original image
     ctx.drawImage(image.img, 0, 0, image.width, image.height);
     
-    // Apply mask
     ctx.globalCompositeOperation = 'destination-in';
     ctx.drawImage(mask, 0, 0, image.width, image.height);
     
-    // Create new image from masked canvas
     const newImg = new window.Image();
     newImg.src = canvas.toDataURL();
     newImg.onload = () => {
@@ -560,7 +595,6 @@ useEffect(() => {
   // Rotate image
   const rotateImage = (degrees) => {
     setRotation(degrees);
-    // We apply rotation during render, no need to modify image
   };
 
   // Handle mask upload
@@ -577,6 +611,132 @@ useEffect(() => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // Start perspective transform
+  const startPerspectiveTransform = () => {
+    if (!image.img) return;
+    
+    setPerspectivePoints([
+      { x: 0, y: 0 },
+      { x: image.width, y: 0 },
+      { x: image.width, y: image.height },
+      { x: 0, y: image.height }
+    ]);
+    setIsTransforming(true);
+  };
+
+  // Apply perspective transform
+  const applyPerspectiveTransform = () => {
+    if (!perspectivePoints || !image.img) return;
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    
+    // Perspective transform
+    ctx.beginPath();
+    ctx.moveTo(perspectivePoints[0].x, perspectivePoints[0].y);
+    for (let i = 1; i < perspectivePoints.length; i++) {
+      ctx.lineTo(perspectivePoints[i].x, perspectivePoints[i].y);
+    }
+    ctx.closePath();
+    ctx.clip();
+    
+    ctx.drawImage(image.img, 0, 0, image.width, image.height);
+    
+    const newImg = new window.Image();
+    newImg.src = canvas.toDataURL();
+    newImg.onload = () => {
+      setImage({
+        ...image,
+        img: newImg
+      });
+      saveHistory(elements, {
+        ...image,
+        img: newImg
+      });
+      setIsTransforming(false);
+      setPerspectivePoints(null);
+    };
+  };
+
+  // Apply clone stamp
+  const applyCloneStamp = (e) => {
+    if (!cloneSource || !isCloning) return;
+    
+    const stage = e.target.getStage();
+    const pointerPos = stage.getPointerPosition();
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    
+    ctx.drawImage(image.img, 0, 0);
+    
+    // Clone operation
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pointerPos.x, pointerPos.y, brushSize, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    
+    ctx.drawImage(
+      image.img,
+      cloneSource.x - brushSize, cloneSource.y - brushSize, brushSize * 2, brushSize * 2,
+      pointerPos.x - brushSize, pointerPos.y - brushSize, brushSize * 2, brushSize * 2
+    );
+    ctx.restore();
+    
+    const newImg = new window.Image();
+    newImg.src = canvas.toDataURL();
+    newImg.onload = () => {
+      setImage({
+        ...image,
+        img: newImg
+      });
+      setIsCloning(false);
+      saveHistory(elements, {
+        ...image,
+        img: newImg
+      });
+    };
+  };
+
+  // Apply texture fill
+  const applyTextureFill = () => {
+    if (!textureImage || !image.img) return;
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    
+    // Create pattern
+    const pattern = ctx.createPattern(textureImage, 'repeat');
+    
+    // Draw original image
+    ctx.drawImage(image.img, 0, 0);
+    
+    // Apply texture
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.fillStyle = pattern;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    const newImg = new window.Image();
+    newImg.src = canvas.toDataURL();
+    newImg.onload = () => {
+      setImage({
+        ...image,
+        img: newImg
+      });
+      saveHistory(elements, {
+        ...image,
+        img: newImg
+      });
+    };
   };
 
   // Render elements based on their type
@@ -596,12 +756,12 @@ useEffect(() => {
         });
       }
     };
-    switch (element.tool) {
 
+    switch (element.tool) {
       case 'rectangle':
         return (
           <Rect
-            key={index}
+            {...commonProps}
             x={element.x}
             y={element.y}
             width={element.width}
@@ -609,131 +769,147 @@ useEffect(() => {
             fill={element.fill}
             stroke={element.stroke}
             strokeWidth={element.strokeWidth}
-            draggable={element.draggable}
-            onClick={() => setSelectedElement(element)}
-            onDragEnd={(e) => {
-              updateElementPosition(index, {
-                x: e.target.x(),
-                y: e.target.y()
-              });
-            }}
           />
         );
       case 'circle':
         return (
           <Circle
-            key={index}
+            {...commonProps}
             x={element.x}
             y={element.y}
             radius={Math.max(element.width, element.height) / 2}
             fill={element.fill}
             stroke={element.stroke}
             strokeWidth={element.strokeWidth}
-            draggable={element.draggable}
-            onClick={() => setSelectedElement(element)}
-            onDragEnd={(e) => {
-              updateElementPosition(index, {
-                x: e.target.x(),
-                y: e.target.y()
-              });
-            }}
           />
         );
       case 'line':
         return (
           <Line
-            key={index}
+            {...commonProps}
             points={[element.x, element.y, element.x + element.width, element.y + element.height]}
             stroke={element.stroke}
             strokeWidth={element.strokeWidth}
-            draggable={element.draggable}
-            onClick={() => setSelectedElement(element)}
-            onDragEnd={(e) => {
-              updateElementPosition(index, {
-                x: e.target.x(),
-                y: e.target.y()
-              });
-            }}
           />
         );
-        case 'color-region':
-  return (
-    <Line
-      {...commonProps}
-      points={element.points}
-      stroke={element.color}
-      strokeWidth={5}
-      opacity={element.opacity / 100}
-      lineCap="round"
-      lineJoin="round"
-      tension={0.5}
-      closed
-      fill={element.color}
-    />
-  );
       case 'arrow':
         return (
           <Arrow
-            key={index}
+            {...commonProps}
             points={[element.x, element.y, element.x + element.width, element.y + element.height]}
             stroke={element.stroke}
             strokeWidth={element.strokeWidth}
             fill={element.stroke}
-            draggable={element.draggable}
             pointerLength={10}
             pointerWidth={10}
-            onClick={() => setSelectedElement(element)}
-            onDragEnd={(e) => {
-              updateElementPosition(index, {
-                x: e.target.x(),
-                y: e.target.y()
-              });
-            }}
           />
         );
-        case 'brush':
-          return (
-            <Line
-              {...commonProps}
-              points={element.points}
-              stroke={element.color}
-              strokeWidth={element.size}
-              lineCap="round"
-              lineJoin="round"
-              tension={0.1}
-              globalCompositeOperation="source-over"
-            />
-          );
-        case 'eraser':
-          return (
-            <Line
-              {...commonProps}
-              points={element.points}
-              stroke="white"
-              strokeWidth={element.size}
-              lineCap="round"
-              lineJoin="round"
-              tension={0.1}
-              globalCompositeOperation="destination-out"
-            />
-          );
+      case 'polygon':
+        return (
+          <RegularPolygon
+            {...commonProps}
+            x={element.x + element.width / 2}
+            y={element.y + element.height / 2}
+            sides={element.sides || polygonSides}
+            radius={Math.max(element.width, element.height) / 2}
+            fill={element.fill}
+            stroke={element.stroke}
+            strokeWidth={element.strokeWidth}
+          />
+        );
+      case 'star':
+        return (
+          <Star
+            {...commonProps}
+            x={element.x + element.width / 2}
+            y={element.y + element.height / 2}
+            innerRadius={element.innerRadius || starInnerRadius}
+            outerRadius={element.outerRadius || Math.max(element.width, element.height) / 2}
+            numPoints={element.points || starPoints}
+            fill={element.fill}
+            stroke={element.stroke}
+            strokeWidth={element.strokeWidth}
+          />
+        );
+      case 'gradient':
+        return gradientType === 'linear' ? (
+          <Rect
+            {...commonProps}
+            x={element.x}
+            y={element.y}
+            width={element.width}
+            height={element.height}
+            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+            fillLinearGradientEndPoint={{ x: element.width, y: element.height }}
+            fillLinearGradientColorStops={[0, gradientStartColor, 1, gradientEndColor]}
+            stroke={element.stroke}
+            strokeWidth={element.strokeWidth}
+          />
+        ) : (
+          <Circle
+            {...commonProps}
+            x={element.x + element.width / 2}
+            y={element.y + element.height / 2}
+            radius={Math.max(element.width, element.height) / 2}
+            fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+            fillRadialGradientStartRadius={0}
+            fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+            fillRadialGradientEndRadius={Math.max(element.width, element.height) / 2}
+            fillRadialGradientColorStops={[0, gradientStartColor, 1, gradientEndColor]}
+            stroke={element.stroke}
+            strokeWidth={element.strokeWidth}
+          />
+        );
+      case 'color-region':
+        return (
+          <Line
+            {...commonProps}
+            points={element.points}
+            stroke={element.color}
+            strokeWidth={5}
+            opacity={element.opacity / 100}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.5}
+            closed
+            fill={element.color}
+          />
+        );
+      case 'brush':
+        return (
+          <Line
+            {...commonProps}
+            points={element.points}
+            stroke={element.color}
+            strokeWidth={element.size}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.1}
+            globalCompositeOperation="source-over"
+          />
+        );
+      case 'eraser':
+        return (
+          <Line
+            {...commonProps}
+            points={element.points}
+            stroke="white"
+            strokeWidth={element.size}
+            lineCap="round"
+            lineJoin="round"
+            tension={0.1}
+            globalCompositeOperation="destination-out"
+          />
+        );
       case 'text':
         return (
           <KonvaText
-            key={index}
+            {...commonProps}
             x={element.x}
             y={element.y}
             text={element.text}
             fontSize={element.fontSize}
             fill={element.fill}
-            draggable={element.draggable}
-            onClick={() => setSelectedElement(element)}
-            onDragEnd={(e) => {
-              updateElementPosition(index, {
-                x: e.target.x(),
-                y: e.target.y()
-              });
-            }}
           />
         );
       default:
@@ -788,6 +964,39 @@ useEffect(() => {
                   </Group>
                 )}
                 
+                {/* Before/After Comparison */}
+                {showBeforeAfter && originalImage && (
+                  <Group clipX={0} clipY={0} clipWidth={(image.width * beforeAfterPosition) / 100} clipHeight={image.height}>
+                    <KonvaImage
+                      image={originalImage}
+                      width={image.width}
+                      height={image.height}
+                    />
+                  </Group>
+                )}
+                
+                {/* Grid */}
+                {showGrid && (
+                  <Group>
+                    {Array.from({ length: Math.ceil(image.width / gridSize) + 1 }).map((_, i) => (
+                      <Line
+                        key={`v-${i}`}
+                        points={[i * gridSize, 0, i * gridSize, image.height]}
+                        stroke="#ddd"
+                        strokeWidth={1}
+                      />
+                    ))}
+                    {Array.from({ length: Math.ceil(image.height / gridSize) + 1 }).map((_, i) => (
+                      <Line
+                        key={`h-${i}`}
+                        points={[0, i * gridSize, image.width, i * gridSize]}
+                        stroke="#ddd"
+                        strokeWidth={1}
+                      />
+                    ))}
+                  </Group>
+                )}
+                
                 {/* Crop Rectangle */}
                 {cropCoords && (
                   <Rect
@@ -814,6 +1023,39 @@ useEffect(() => {
                   />
                 )}
 
+                {/* Perspective Transform Handles */}
+                {isTransforming && perspectivePoints && (
+                  <Group>
+                    <Line
+                      points={[
+                        perspectivePoints[0].x, perspectivePoints[0].y,
+                        perspectivePoints[1].x, perspectivePoints[1].y,
+                        perspectivePoints[2].x, perspectivePoints[2].y,
+                        perspectivePoints[3].x, perspectivePoints[3].y,
+                        perspectivePoints[0].x, perspectivePoints[0].y
+                      ]}
+                      stroke="blue"
+                      strokeWidth={2}
+                      dash={[5, 5]}
+                    />
+                    {perspectivePoints.map((point, i) => (
+                      <Circle
+                        key={i}
+                        x={point.x}
+                        y={point.y}
+                        radius={8}
+                        fill="blue"
+                        draggable
+                        onDragMove={(e) => {
+                          const newPoints = [...perspectivePoints];
+                          newPoints[i] = { x: e.target.x(), y: e.target.y() };
+                          setPerspectivePoints(newPoints);
+                        }}
+                      />
+                    ))}
+                  </Group>
+                )}
+
                 {/* Temporary colored region while drawing */}
                 {tempElement?.tool === 'color-region' && (
                   <Line
@@ -830,19 +1072,69 @@ useEffect(() => {
                 )}
 
                 {/* Render all elements */}
-              {elements.map((element, index) => 
-  renderElement(element, index, updateElementPosition)
-)}
+                {elements.map((element, index) => 
+                  renderElement(element, index, updateElementPosition)
+                )}
 
-{/* Render temporary element (while drawing) */}
-{tempElement && tempElement.tool !== 'color-region' && 
-  renderElement(tempElement, 'temp', updateElementPosition)}
+                {/* Render temporary element (while drawing) */}
+                {tempElement && tempElement.tool !== 'color-region' && 
+                  renderElement(tempElement, 'temp', updateElementPosition)}
+
+                {/* Magnifier */}
+                {showMagnifier && (
+                  <Group>
+                    <Circle
+                      x={magnifierPosition.x}
+                      y={magnifierPosition.y}
+                      radius={100}
+                      fillPatternImage={image.img}
+                      fillPatternOffset={{
+                        x: -magnifierPosition.x * zoomLevel + 100,
+                        y: -magnifierPosition.y * zoomLevel + 100
+                      }}
+                      fillPatternScale={{ x: zoomLevel, y: zoomLevel }}
+                      stroke="black"
+                      strokeWidth={2}
+                    />
+                    <Circle
+                      x={magnifierPosition.x}
+                      y={magnifierPosition.y}
+                      radius={100}
+                      stroke="white"
+                      strokeWidth={1}
+                    />
+                  </Group>
+                )}
+
+                {/* Before/After Slider */}
+                {showBeforeAfter && originalImage && (
+                  <Group>
+                    <Line
+                      points={[
+                        (image.width * beforeAfterPosition) / 100, 0,
+                        (image.width * beforeAfterPosition) / 100, image.height
+                      ]}
+                      stroke="red"
+                      strokeWidth={2}
+                    />
+                    <Circle
+                      x={(image.width * beforeAfterPosition) / 100}
+                      y={image.height / 2}
+                      radius={10}
+                      fill="red"
+                      draggable
+                      onDragMove={(e) => {
+                        const newPos = Math.max(0, Math.min(e.target.x(), image.width));
+                        setBeforeAfterPosition((newPos / image.width) * 100);
+                      }}
+                    />
+                  </Group>
+                )}
 
                 {/* Transformer for selected elements */}
                 <Transformer
                   ref={transformerRef}
                   boundBoxFunc={(oldBox, newBox) => {
-                    // Limit resize to keep proportions
                     if (newBox.width < 5 || newBox.height < 5) {
                       return oldBox;
                     }
@@ -902,15 +1194,15 @@ useEffect(() => {
           
           {/* Tool Selection */}
           <div className="grid grid-cols-4 gap-2 mb-6">
-            {['select', 'brush', 'eraser', 'text', 'crop', 'cut', 'color-region'].map((tool) => (
+            {['select', 'brush', 'eraser', 'text', 'crop', 'cut', 'color-region', 'clone', 'magnifier', 'before-after'].map((tool) => (
               <button
                 key={tool}
                 onClick={() => {
                   setSelectedTool(tool);
-                  setSelectedElement(null); // Clear selection when switching tools
+                  setSelectedElement(null);
                 }}
                 className={`p-2 rounded ${selectedTool === tool ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-                title={tool.charAt(0).toUpperCase() + tool.slice(1)}
+                title={tool.charAt(0).toUpperCase() + tool.slice(1).replace('-', ' ')}
               >
                 {tool === 'select' && '✏️'}
                 {tool === 'brush' && '🖌️'}
@@ -919,6 +1211,9 @@ useEffect(() => {
                 {tool === 'crop' && '✂️'}
                 {tool === 'cut' && '🔪'}
                 {tool === 'color-region' && '🎨'}
+                {tool === 'clone' && '🏷️'}
+                {tool === 'magnifier' && '🔍'}
+                {tool === 'before-after' && '🔄'}
               </button>
             ))}
             
@@ -931,10 +1226,28 @@ useEffect(() => {
               {showShapes ? '⬆️' : '⬇️'} Shapes
             </button>
             
+            {/* Perspective transform button */}
+            <button
+              onClick={() => setSelectedTool('perspective')}
+              className={`p-2 rounded ${selectedTool === 'perspective' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+              title="Perspective"
+            >
+              🏞️
+            </button>
+            
+            {/* Texture fill button */}
+            <button
+              onClick={() => setSelectedTool('texture')}
+              className={`p-2 rounded ${selectedTool === 'texture' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+              title="Texture"
+            >
+              🧵
+            </button>
+            
             {/* Shapes tools (shown when showShapes is true) */}
             {showShapes && (
               <>
-                {['rectangle', 'circle', 'line', 'arrow'].map((tool) => (
+                {['rectangle', 'circle', 'line', 'arrow', 'polygon', 'star', 'gradient'].map((tool) => (
                   <button
                     key={tool}
                     onClick={() => setSelectedTool(tool)}
@@ -945,6 +1258,9 @@ useEffect(() => {
                     {tool === 'circle' && '⭕'}
                     {tool === 'line' && '📏'}
                     {tool === 'arrow' && '➡️'}
+                    {tool === 'polygon' && '🔶'}
+                    {tool === 'star' && '⭐'}
+                    {tool === 'gradient' && '🌈'}
                   </button>
                 ))}
               </>
@@ -972,20 +1288,20 @@ useEffect(() => {
               </div>
             )}
 
-            {(selectedTool === 'brush' || selectedTool === 'eraser') && (
+            {(selectedTool === 'brush' || selectedTool === 'eraser' || selectedTool === 'clone') && (
               <div>
                 <h3 className="font-medium mb-2">
-                  {selectedTool === 'brush' ? 'Brush' : 'Eraser'} Options
+                  {selectedTool === 'brush' ? 'Brush' : selectedTool === 'eraser' ? 'Eraser' : 'Clone Stamp'} Options
                 </h3>
                 <div className="flex items-center gap-2">
                   <span>Size:</span>
                   <input
                     type="range"
                     min="1"
-                    max="50"
-                    value={selectedTool === 'brush' ? brushSize : eraserSize}
+                    max={selectedTool === 'clone' ? '100' : '50'}
+                    value={selectedTool === 'brush' ? brushSize : selectedTool === 'clone' ? brushSize : eraserSize}
                     onChange={(e) =>
-                      selectedTool === 'brush'
+                      selectedTool === 'brush' || selectedTool === 'clone'
                         ? setBrushSize(parseInt(e.target.value))
                         : setEraserSize(parseInt(e.target.value))
                     }
@@ -999,6 +1315,14 @@ useEffect(() => {
                     onChange={(e) => setBrushColor(e.target.value)}
                     className="w-full mt-2"
                   />
+                )}
+                {selectedTool === 'clone' && (
+                  <button
+                    onClick={() => setIsCloning(!isCloning)}
+                    className={`w-full mt-2 py-2 ${isCloning ? 'bg-blue-600' : 'bg-blue-500'} text-white rounded`}
+                  >
+                    {isCloning ? 'Stop Cloning' : 'Start Cloning'}
+                  </button>
                 )}
               </div>
             )}
@@ -1036,32 +1360,208 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Shape Options */}
-            {(selectedTool === 'rectangle' || selectedTool === 'circle' || selectedTool === 'line' || selectedTool === 'arrow') && (
-  <div>
-    <h3 className="font-medium mb-2">Shape Options</h3>
-    <div className="flex gap-2">
-      <div>
-        <label className="block text-sm">Fill Color</label>
-        <input
-          type="color"
-          value={shapeFillColor}
-          onChange={(e) => setShapeFillColor(e.target.value)}
-          className="w-full"
-        />
-      </div>
-      <div>
-        <label className="block text-sm">Stroke Color</label>
-        <input
-          type="color"
-          value={shapeStrokeColor}
-          onChange={(e) => setShapeStrokeColor(e.target.value)}
-          className="w-full"
-        />
-      </div>
-    </div>
-  </div>
-)}
+            {(selectedTool === 'rectangle' || selectedTool === 'circle' || selectedTool === 'line' || 
+              selectedTool === 'arrow' || selectedTool === 'polygon' || selectedTool === 'star' || selectedTool === 'gradient') && (
+              <div>
+                <h3 className="font-medium mb-2">Shape Options</h3>
+                
+                {selectedTool === 'polygon' && (
+                  <div className="mb-2">
+                    <label className="block">Sides: {polygonSides}</label>
+                    <input
+                      type="range"
+                      min="3"
+                      max="12"
+                      value={polygonSides}
+                      onChange={(e) => setPolygonSides(parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                )}
+                
+                {selectedTool === 'star' && (
+                  <>
+                    <div className="mb-2">
+                      <label className="block">Points: {starPoints}</label>
+                      <input
+                        type="range"
+                        min="3"
+                        max="12"
+                        value={starPoints}
+                        onChange={(e) => setStarPoints(parseInt(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="mb-2">
+                      <label className="block">Inner Radius: {starInnerRadius}%</label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="90"
+                        value={starInnerRadius}
+                        onChange={(e) => setStarInnerRadius(parseInt(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                  </>
+                )}
+                
+                {selectedTool === 'gradient' && (
+                  <div className="mb-2">
+                    <select
+                      value={gradientType}
+                      onChange={(e) => setGradientType(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="linear">Linear Gradient</option>
+                      <option value="radial">Radial Gradient</option>
+                    </select>
+                    <div className="flex gap-2 mt-2">
+                      <div>
+                        <label className="block text-sm">Start Color</label>
+                        <input
+                          type="color"
+                          value={gradientStartColor}
+                          onChange={(e) => setGradientStartColor(e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm">End Color</label>
+                        <input
+                          type="color"
+                          value={gradientEndColor}
+                          onChange={(e) => setGradientEndColor(e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <div>
+                    <label className="block text-sm">Fill Color</label>
+                    <input
+                      type="color"
+                      value={shapeFillColor}
+                      onChange={(e) => setShapeFillColor(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm">Stroke Color</label>
+                    <input
+                      type="color"
+                      value={shapeStrokeColor}
+                      onChange={(e) => setShapeStrokeColor(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedTool === 'magnifier' && (
+              <div>
+                <h3 className="font-medium mb-2">Magnifier Options</h3>
+                <div className="flex items-center gap-2">
+                  <span>Zoom:</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    step="0.5"
+                    value={zoomLevel}
+                    onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span>{zoomLevel}x</span>
+                </div>
+                <button
+                  onClick={() => setShowMagnifier(!showMagnifier)}
+                  className={`w-full mt-2 py-2 ${showMagnifier ? 'bg-blue-600' : 'bg-blue-500'} text-white rounded`}
+                >
+                  {showMagnifier ? 'Hide Magnifier' : 'Show Magnifier'}
+                </button>
+              </div>
+            )}
+
+            {selectedTool === 'before-after' && (
+              <div>
+                <h3 className="font-medium mb-2">Before/After Options</h3>
+                <button
+                  onClick={() => setShowBeforeAfter(!showBeforeAfter)}
+                  className={`w-full py-2 ${showBeforeAfter ? 'bg-blue-600' : 'bg-blue-500'} text-white rounded`}
+                >
+                  {showBeforeAfter ? 'Hide Comparison' : 'Show Comparison'}
+                </button>
+                {showBeforeAfter && (
+                  <div className="mt-2">
+                    <label>Position: {beforeAfterPosition}%</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={beforeAfterPosition}
+                      onChange={(e) => setBeforeAfterPosition(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedTool === 'perspective' && (
+              <div>
+                <h3 className="font-medium mb-2">Perspective Transform</h3>
+                <button
+                  onClick={isTransforming ? applyPerspectiveTransform : startPerspectiveTransform}
+                  className={`w-full py-2 ${isTransforming ? 'bg-green-500' : 'bg-blue-500'} text-white rounded`}
+                >
+                  {isTransforming ? 'Apply Transform' : 'Start Transform'}
+                </button>
+                {isTransforming && (
+                  <p className="text-xs mt-1 text-gray-600">
+                    Drag corners to adjust perspective
+                  </p>
+                )}
+              </div>
+            )}
+
+            {selectedTool === 'texture' && (
+              <div>
+                <h3 className="font-medium mb-2">Texture Fill</h3>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const img = new window.Image();
+                        img.src = event.target.result;
+                        img.onload = () => {
+                          setTextureImage(img);
+                        };
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="w-full text-sm mb-2"
+                />
+                {textureImage && (
+                  <button
+                    onClick={applyTextureFill}
+                    className="w-full py-2 bg-blue-500 text-white rounded"
+                  >
+                    Apply Texture
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Image Adjustment Options */}
             <div>
               <h3 className="font-medium mb-2">Image Adjustments</h3>
@@ -1174,6 +1674,34 @@ useEffect(() => {
                 >
                   Apply Mask
                 </button>
+              )}
+            </div>
+
+            {/* Grid & Guides */}
+            <div className="pt-4 border-t">
+              <h3 className="font-medium mb-2">Grid & Guides</h3>
+              <div className="flex items-center justify-between mb-2">
+                <label>Show Grid:</label>
+                <input
+                  type="checkbox"
+                  checked={showGrid}
+                  onChange={() => setShowGrid(!showGrid)}
+                  className="h-4 w-4"
+                />
+              </div>
+              {showGrid && (
+                <div>
+                  <label className="block">Grid Size: {gridSize}px</label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value={gridSize}
+                    onChange={(e) => setGridSize(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
               )}
             </div>
 

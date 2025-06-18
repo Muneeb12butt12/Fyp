@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-
 import { toast } from 'react-toastify';
- import LoadingSpinner from '../components/LoadingSpinner';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const ColorizableImage = ({ src, color, className, filter, pattern }) => {
   const canvasRef = useRef(null);
@@ -107,6 +106,8 @@ const CustomizationPage = () => {
   const navigate = useNavigate();
   const previewRef = useRef(null);
   const fileInputRef = useRef(null);
+  const patternInputRef = useRef(null);
+  const optionsRef = useRef(null);
   
   // Enhanced color palette
   const enhancedColors = [
@@ -136,22 +137,30 @@ const CustomizationPage = () => {
     { id: 'warm', name: 'Warm Tone' }
   ];
 
-  // Pattern options
+  // Pattern options - using placeholder images from a free pattern service
   const patternOptions = [
     { id: 'none', name: 'No Pattern', image: null },
-    { id: 'stripes', name: 'Thin Stripes', image: 'https://example.com/patterns/stripes.png', price: 3.99 },
-    { id: 'dots', name: 'Polka Dots', image: 'https://example.com/patterns/dots.png', price: 4.99 },
-    { id: 'camo', name: 'Camouflage', image: 'https://example.com/patterns/camo.png', price: 5.99 },
-    { id: 'floral', name: 'Floral', image: 'https://example.com/patterns/floral.png', price: 6.99 },
-    { id: 'geometric', name: 'Geometric', image: 'https://example.com/patterns/geometric.png', price: 5.99 }
+    { id: 'stripes', name: 'Thin Stripes', image: 'https://www.transparenttextures.com/patterns/black-thread-light.png', price: 3.99 },
+    { id: 'dots', name: 'Polka Dots', image: 'https://www.transparenttextures.com/patterns/dotted.png', price: 4.99 },
+    { id: 'camo', name: 'Camouflage', image: 'https://www.transparenttextures.com/patterns/camo.png', price: 5.99 },
+    { id: 'floral', name: 'Floral', image: 'https://www.transparenttextures.com/patterns/floral.png', price: 6.99 },
+    { id: 'geometric', name: 'Geometric', image: 'https://www.transparenttextures.com/patterns/geometric-pattern.png', price: 5.99 }
   ];
 
-  // Default product
+  // Logo options - using placeholder images from a free service
+  const logoOptions = [
+    { id: 1, name: 'SportsX Logo', image: 'https://via.placeholder.com/200x200/ffffff/000000?text=SportsX', price: 5.99 },
+    { id: 2, name: 'Team Spirit', image: 'https://via.placeholder.com/200x200/ffffff/000000?text=Team+Spirit', price: 4.99 },
+    { id: 3, name: 'Athletic Star', image: 'https://via.placeholder.com/200x200/ffffff/000000?text=Athletic+Star', price: 6.99 },
+    { id: 4, name: 'Custom Upload', image: 'https://via.placeholder.com/200x200/ffffff/000000?text=Upload+Logo', price: 8.99 },
+  ];
+
+  // Default product with better placeholder image
   const defaultProduct = {
     id: 1,
     title: 'Custom Sports T-Shirt',
     price: 29.99,
-    img: 'https://via.placeholder.com/500x600?text=T-Shirt+Preview',
+    img: 'https://via.placeholder.com/800x960/ffffff/000000?text=T-Shirt+Preview',
     colors: enhancedColors,
     sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
     description: 'High-quality customizable t-shirt with premium fabric'
@@ -186,20 +195,73 @@ const CustomizationPage = () => {
   const [selectedFabric, setSelectedFabric] = useState(initialFabric || fabricOptions[0].id);
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || 'none');
   const [selectedPattern, setSelectedPattern] = useState(initialPattern || patternOptions[0]);
+  const [activeTab, setActiveTab] = useState('design'); // 'design' or 'details'
+  const [patternOpacity, setPatternOpacity] = useState(0.5); // New state for pattern opacity
+  const [patternScale, setPatternScale] = useState(1); // New state for pattern scale
 
-  // Logo options
-  const logoOptions = [
-    { id: 1, name: 'SportsX Logo', image: 'https://via.placeholder.com/200x200?text=SportsX', price: 5.99 },
-    { id: 2, name: 'Team Spirit', image: 'https://via.placeholder.com/200x200?text=Team+Spirit', price: 4.99 },
-    { id: 3, name: 'Athletic Star', image: 'https://via.placeholder.com/200x200?text=Athletic+Star', price: 6.99 },
-    { id: 4, name: 'Custom Upload', image: 'https://via.placeholder.com/200x200?text=Upload', price: 8.99 },
-  ];
+  // Draggable logo handlers
+  const handleMouseDown = (e) => {
+    if (!selectedLogo) return;
+    
+    const rect = previewRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setIsDragging(true);
+    setDragStart({ x, y });
+    previewRef.current.style.cursor = 'grabbing';
+  };
 
-  // Draggable logo handlers (keep your existing handlers)
-  const handleMouseDown = (e) => { /* ... */ };
-  const handleMouseMove = (e) => { /* ... */ };
-  const handleMouseUp = () => { /* ... */ };
-  const handleKeyDown = (e) => { /* ... */ };
+  const handleMouseMove = (e) => {
+    if (!isDragging || !selectedLogo) return;
+    
+    const rect = previewRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const deltaX = x - dragStart.x;
+    const deltaY = y - dragStart.y;
+    
+    setLogoPosition(prev => ({
+      x: Math.max(0, Math.min(100, prev.x + (deltaX / rect.width * 100))),
+      y: Math.max(0, Math.min(100, prev.y + (deltaY / rect.height * 100)))
+    }));
+    
+    setDragStart({ x, y });
+  };
+
+  const handleMouseUp = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    previewRef.current.style.cursor = 'grab';
+  };
+
+  const handleKeyDown = (e) => {
+    if (!previewRef.current.contains(document.activeElement)) return;
+    
+    const moveAmount = e.shiftKey ? 10 : 5;
+    
+    switch(e.key) {
+      case 'ArrowUp':
+        e.preventDefault();
+        setTextPositionCoords(prev => ({ ...prev, y: Math.max(0, prev.y - moveAmount) }));
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        setTextPositionCoords(prev => ({ ...prev, y: Math.min(100, prev.y + moveAmount) }));
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        setTextPositionCoords(prev => ({ ...prev, x: Math.max(0, prev.x - moveAmount) }));
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        setTextPositionCoords(prev => ({ ...prev, x: Math.min(100, prev.x + moveAmount) }));
+        break;
+      default:
+        break;
+    }
+  };
 
   // Price calculation
   useEffect(() => {
@@ -231,15 +293,40 @@ const CustomizationPage = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    setIsLoading(true);
+    setUploadProgress(0);
+    
+    // Simulate upload progress
+    const interval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
     const reader = new FileReader();
     reader.onload = (event) => {
-      setSelectedLogo({
-        id: `custom-${Date.now()}`,
-        name: 'Custom Logo',
-        image: event.target.result,
-        price: 8.99
-      });
-      setLogoPosition({ x: 50, y: 50 });
+      clearInterval(interval);
+      setUploadProgress(100);
+      setTimeout(() => {
+        setSelectedLogo({
+          id: `custom-${Date.now()}`,
+          name: 'Custom Logo',
+          image: event.target.result,
+          price: 8.99
+        });
+        setLogoPosition({ x: 50, y: 50 });
+        setIsLoading(false);
+        setUploadProgress(0);
+      }, 500);
+    };
+    reader.onerror = () => {
+      clearInterval(interval);
+      setIsLoading(false);
+      toast.error('Failed to upload logo');
     };
     reader.readAsDataURL(file);
   };
@@ -248,20 +335,46 @@ const CustomizationPage = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    setIsLoading(true);
+    setUploadProgress(0);
+    
+    // Simulate upload progress
+    const interval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
     const reader = new FileReader();
     reader.onload = (event) => {
-      setSelectedPattern({
-        id: `custom-${Date.now()}`,
-        name: 'Custom Pattern',
-        image: event.target.result,
-        price: 9.99
-      });
+      clearInterval(interval);
+      setUploadProgress(100);
+      setTimeout(() => {
+        setSelectedPattern({
+          id: `custom-${Date.now()}`,
+          name: 'Custom Pattern',
+          image: event.target.result,
+          price: 9.99
+        });
+        setIsLoading(false);
+        setUploadProgress(0);
+      }, 500);
+    };
+    reader.onerror = () => {
+      clearInterval(interval);
+      setIsLoading(false);
+      toast.error('Failed to upload pattern');
     };
     reader.readAsDataURL(file);
   };
 
   const handleSaveCustomization = (e) => {
     e.preventDefault();
+    setIsLoading(true);
     
     const customizationData = {
       productId: product.id,
@@ -271,6 +384,8 @@ const CustomizationPage = () => {
       fabric: selectedFabric,
       filter: selectedFilter,
       pattern: selectedPattern,
+      patternOpacity,
+      patternScale,
       logo: selectedLogo ? {
         id: selectedLogo.id,
         url: selectedLogo.image,
@@ -286,24 +401,33 @@ const CustomizationPage = () => {
       finalPrice: totalPrice
     };
 
-    if (location.state?.cartItem) {
-      updateCartItemCustomization(
-        location.state.cartItem.id,
-        selectedColor,
-        selectedSize,
-        customizationData,
-        parseInt(quantity) || 1
-      );
-    } else {
-      addCustomizedToCart({
-        ...product,
-        ...customizationData
-      });
-    }
-    setIsLoading(false);
-    navigate('/Cart');
-    toast.success('Customization saved successfully!');
+    setTimeout(() => {
+      if (location.state?.cartItem) {
+        updateCartItemCustomization(
+          location.state.cartItem.id,
+          selectedColor,
+          selectedSize,
+          customizationData,
+          parseInt(quantity) || 1
+        );
+      } else {
+        addCustomizedToCart({
+          ...product,
+          ...customizationData
+        });
+      }
+      setIsLoading(false);
+      navigate('/Cart');
+      toast.success('Customization saved successfully!');
+    }, 1000);
   };
+
+  // Scroll to options when tab changes
+  useEffect(() => {
+    if (optionsRef.current && activeTab === 'details') {
+      optionsRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeTab]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -312,98 +436,161 @@ const CustomizationPage = () => {
       <h1 className="text-3xl font-bold mb-6">Customize Your {product.title}</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Product Preview */}
-        <div className="bg-white p-6 rounded-lg shadow-lg">
-          <h2 className="text-xl font-semibold mb-4">Design Preview</h2>
-          <div 
-            ref={previewRef}
-            className="relative w-full h-96 bg-gray-100 flex items-center justify-center cursor-move rounded-md overflow-hidden"
-            onMouseDown={handleMouseDown}
-            tabIndex={0}
-          >
-            <ColorizableImage 
-              src={product.img} 
-              color={selectedColor} 
-              className="absolute w-full h-full object-contain"
-              filter={selectedFilter}
-              pattern={selectedPattern?.image}
-            />
-            
-            {selectedLogo && (
-              <img
-                src={selectedLogo.image}
-                alt="Custom logo"
-                className="absolute cursor-move transition-transform hover:scale-105"
-                style={{
-                  width: logoSize === 'small' ? '80px' : 
-                         logoSize === 'medium' ? '120px' :
-                         logoSize === 'large' ? '160px' : '200px',
-                  left: `${logoPosition.x}px`,
-                  top: `${logoPosition.y}px`,
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 10,
-                  userSelect: 'none'
-                }}
-                draggable="false"
-              />
-            )}
-            
-            {customText && (
-              <div 
-                className="absolute"
-                style={{
-                  color: textColor,
-                  fontSize: '18px',
-                  fontWeight: 'bold',
-                  top: `${textPositionCoords.y}%`,
-                  left: `${textPositionCoords.x}%`,
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 15,
-                  textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
-                }}
-              >
-                {customText}
-              </div>
-            )}
+        {/* Product Preview - Larger and sticky */}
+        <div className="bg-white p-6 rounded-lg shadow-lg sticky top-4 h-[calc(100vh-2rem)] overflow-hidden flex flex-col">
+          <div className="flex border-b mb-4">
+            <button
+              onClick={() => setActiveTab('design')}
+              className={`px-4 py-2 font-medium ${activeTab === 'design' ? 'border-b-2 border-black' : 'text-gray-500'}`}
+            >
+              Design Preview
+            </button>
+            <button
+              onClick={() => setActiveTab('details')}
+              className={`px-4 py-2 font-medium ${activeTab === 'details' ? 'border-b-2 border-black' : 'text-gray-500'}`}
+            >
+              Product Details
+            </button>
           </div>
           
-          <div className="mt-4 flex justify-between items-center">
-            <div>
-              <p className="text-lg font-semibold">Total: ${totalPrice}</p>
-              {selectedLogo && <p className="text-sm">Includes {selectedLogo.name}</p>}
-              {selectedPattern && selectedPattern.id !== 'none' && (
-                <p className="text-sm">With {selectedPattern.name} pattern</p>
+          {activeTab === 'design' ? (
+            <div 
+              ref={previewRef}
+              className="relative flex-1 bg-gray-100 flex items-center justify-center cursor-move rounded-md overflow-hidden"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onKeyDown={handleKeyDown}
+              tabIndex={0}
+            >
+              <ColorizableImage 
+                src={product.img} 
+                color={selectedColor} 
+                className="absolute w-full h-full object-contain"
+                filter={selectedFilter}
+                pattern={selectedPattern?.image}
+              />
+              
+              {selectedLogo && (
+                <img
+                  src={selectedLogo.image}
+                  alt="Custom logo"
+                  className="absolute cursor-move transition-transform hover:scale-105"
+                  style={{
+                    width: logoSize === 'small' ? '80px' : 
+                          logoSize === 'medium' ? '120px' :
+                          logoSize === 'large' ? '160px' : '200px',
+                    left: `${logoPosition.x}%`,
+                    top: `${logoPosition.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 10,
+                    userSelect: 'none'
+                  }}
+                  draggable="false"
+                />
+              )}
+              
+              {customText && (
+                <div 
+                  className="absolute"
+                  style={{
+                    color: textColor,
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    top: `${textPositionCoords.y}%`,
+                    left: `${textPositionCoords.x}%`,
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 15,
+                    textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  {customText}
+                </div>
               )}
             </div>
-            {selectedLogo && (
-              <p className="text-sm text-gray-500">Drag logo to reposition</p>
-            )}
-            {customText && (
-              <p className="text-sm text-gray-500">Use arrow keys to move text</p>
-            )}
-          </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              <h3 className="text-lg font-semibold mb-4">Product Details</h3>
+              <div className="space-y-3">
+                <p className="text-sm">
+                  <span className="font-medium">Color:</span> 
+                  <span className="ml-2 inline-block w-4 h-4 rounded-full border border-gray-300" 
+                        style={{ backgroundColor: selectedColor }}></span>
+                  <span className="ml-1">{selectedColor}</span>
+                </p>
+                <p className="text-sm"><span className="font-medium">Size:</span> {selectedSize}</p>
+                <p className="text-sm">
+                  <span className="font-medium">Fabric:</span> {
+                    fabricOptions.find(f => f.id === selectedFabric)?.name || 'Standard'
+                  }
+                </p>
+                <p className="text-sm"><span className="font-medium">Base Price:</span> ${product.price.toFixed(2)}</p>
+                {product.description && (
+                  <p className="text-sm">{product.description}</p>
+                )}
+                
+                {selectedLogo && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="font-medium mb-2">Custom Logo</h4>
+                    <div className="flex items-center">
+                      <img 
+                        src={selectedLogo.image} 
+                        alt="Selected logo" 
+                        className="w-12 h-12 object-contain mr-3 border rounded"
+                      />
+                      <div>
+                        <p className="text-sm">{selectedLogo.name}</p>
+                        <p className="text-xs text-gray-500">Size: {logoSize}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {customText && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="font-medium mb-2">Custom Text</h4>
+                    <p className="text-sm" style={{ color: textColor }}>{customText}</p>
+                  </div>
+                )}
+                
+                {selectedPattern && selectedPattern.id !== 'none' && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="font-medium mb-2">Pattern</h4>
+                    <div className="flex items-center">
+                      {selectedPattern.image && (
+                        <img 
+                          src={selectedPattern.image} 
+                          alt="Selected pattern" 
+                          className="w-12 h-12 object-contain mr-3 border rounded"
+                        />
+                      )}
+                      <p className="text-sm">{selectedPattern.name}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           
-          <div className="mt-6 border-t pt-4">
-            <h3 className="text-lg font-semibold mb-2">Product Details</h3>
-            <p className="text-sm mb-2">
-              <span className="font-medium">Color:</span> 
-              <span className="ml-1 inline-block w-4 h-4 rounded-full border border-gray-300" 
-                    style={{ backgroundColor: selectedColor }}></span>
-              <span className="ml-1">{selectedColor}</span>
-            </p>
-            <p className="text-sm mb-2"><span className="font-medium">Size:</span> {selectedSize}</p>
-            <p className="text-sm mb-2"><span className="font-medium">Fabric:</span> {
-              fabricOptions.find(f => f.id === selectedFabric)?.name || 'Standard'
-            }</p>
-            <p className="text-sm mb-2"><span className="font-medium">Base Price:</span> ${product.price.toFixed(2)}</p>
-            {product.description && (
-              <p className="text-sm mt-2">{product.description}</p>
-            )}
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-lg font-semibold">Total: ${totalPrice}</p>
+                {selectedLogo && <p className="text-sm">Includes {selectedLogo.name}</p>}
+                {selectedPattern && selectedPattern.id !== 'none' && (
+                  <p className="text-sm">With {selectedPattern.name} pattern</p>
+                )}
+              </div>
+              {selectedLogo && (
+                <p className="text-sm text-gray-500 hidden lg:block">Drag logo to reposition</p>
+              )}
+            </div>
           </div>
         </div>
         
         {/* Customization Options */}
-        <div className="space-y-6">
+        <div ref={optionsRef} className="space-y-6">
           {/* Color Selection */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <h3 className="text-lg font-semibold mb-3">Select Color</h3>
@@ -477,7 +664,7 @@ const CustomizationPage = () => {
             </div>
           </div>
           
-          {/* Pattern Selection */}
+          {/* Enhanced Pattern Selection */}
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <h3 className="text-lg font-semibold mb-3">Add Pattern</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -510,10 +697,46 @@ const CustomizationPage = () => {
               ))}
             </div>
             
+            {/* Enhanced Pattern Controls */}
+            {selectedPattern && selectedPattern.id !== 'none' && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Pattern Opacity: {Math.round(patternOpacity * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={patternOpacity}
+                    onChange={(e) => setPatternOpacity(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Pattern Scale: {patternScale}x
+                  </label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2"
+                    step="0.1"
+                    value={patternScale}
+                    onChange={(e) => setPatternScale(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
+            
             <div className="mt-4">
               <label className="block text-sm font-medium mb-2">Upload Your Own Pattern</label>
               <input 
                 type="file" 
+                ref={patternInputRef}
                 accept="image/*"
                 onChange={handlePatternUpload}
                 className="block w-full text-sm text-gray-500
@@ -607,18 +830,84 @@ const CustomizationPage = () => {
             </div>
             
             {selectedLogo && (
-              <div className="mt-4">
-                <label className="block text-sm font-medium mb-2">Logo Size</label>
-                <select
-                  value={logoSize}
-                  onChange={(e) => setLogoSize(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="small">Small (+$0.00)</option>
-                  <option value="medium">Medium (+$1.00)</option>
-                  <option value="large">Large (+$2.00)</option>
-                  <option value="xlarge">X-Large (+$3.00)</option>
-                </select>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Logo Size</label>
+                  <select
+                    value={logoSize}
+                    onChange={(e) => setLogoSize(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="small">Small (+$0.00)</option>
+                    <option value="medium">Medium (+$1.00)</option>
+                    <option value="large">Large (+$2.00)</option>
+                    <option value="xlarge">X-Large (+$3.00)</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Logo Position</label>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setLogoPosition({ x: 20, y: 20 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Top Left
+                    </button>
+                    <button 
+                      onClick={() => setLogoPosition({ x: 50, y: 20 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Top Center
+                    </button>
+                    <button 
+                      onClick={() => setLogoPosition({ x: 80, y: 20 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Top Right
+                    </button>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button 
+                      onClick={() => setLogoPosition({ x: 20, y: 50 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Middle Left
+                    </button>
+                    <button 
+                      onClick={() => setLogoPosition({ x: 50, y: 50 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Center
+                    </button>
+                    <button 
+                      onClick={() => setLogoPosition({ x: 80, y: 50 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Middle Right
+                    </button>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button 
+                      onClick={() => setLogoPosition({ x: 20, y: 80 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Bottom Left
+                    </button>
+                    <button 
+                      onClick={() => setLogoPosition({ x: 50, y: 80 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Bottom Center
+                    </button>
+                    <button 
+                      onClick={() => setLogoPosition({ x: 80, y: 80 })}
+                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                    >
+                      Bottom Right
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -646,54 +935,87 @@ const CustomizationPage = () => {
                       onChange={(e) => setTextColor(e.target.value)}
                       className="w-10 h-10 cursor-pointer rounded border border-gray-300"
                     />
-                    <span className="text-sm">{textColor}</span>
+                    <input
+                      type="text"
+                      value={textColor}
+                      onChange={(e) => setTextColor(e.target.value)}
+                      className="flex-1 p-2 border rounded-md"
+                    />
                   </div>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Text Position Controls</label>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setTextPositionCoords(prev => ({ ...prev, y: Math.max(0, prev.y - 5) }))}
-                      className="p-2 border rounded-md hover:bg-gray-100"
-                      aria-label="Move text up"
-                    >
-                      ↑
-                    </button>
-                    <button 
-                      onClick={() => setTextPositionCoords(prev => ({ ...prev, y: Math.min(100, prev.y + 5) }))}
-                      className="p-2 border rounded-md hover:bg-gray-100"
-                      aria-label="Move text down"
-                    >
-                      ↓
-                    </button>
-                    <button 
-                      onClick={() => setTextPositionCoords(prev => ({ ...prev, x: Math.max(0, prev.x - 5) }))}
-                      className="p-2 border rounded-md hover:bg-gray-100"
-                      aria-label="Move text left"
-                    >
-                      ←
-                    </button>
-                    <button 
-                      onClick={() => setTextPositionCoords(prev => ({ ...prev, x: Math.min(100, prev.x + 5) }))}
-                      className="p-2 border rounded-md hover:bg-gray-100"
-                      aria-label="Move text right"
-                    >
-                      →
-                    </button>
-                    <button 
-                      onClick={() => setTextPositionCoords({ x: 50, y: 50 })}
-                      className="p-2 border rounded-md hover:bg-gray-100 text-sm"
-                      aria-label="Reset text position"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Position: X: {textPositionCoords.x}%, Y: {textPositionCoords.y}% 
-                    (or use arrow keys when preview is focused)
-                  </p>
+                  <label className="block text-sm font-medium mb-2">Text Position</label>
+                  <select
+                    value={textPosition}
+                    onChange={(e) => {
+                      setTextPosition(e.target.value);
+                      if (e.target.value === 'below-logo') {
+                        setTextPositionCoords({ x: logoPosition.x, y: Math.min(100, logoPosition.y + 15) });
+                      } else if (e.target.value === 'above-logo') {
+                        setTextPositionCoords({ x: logoPosition.x, y: Math.max(0, logoPosition.y - 15) });
+                      } else if (e.target.value === 'left-logo') {
+                        setTextPositionCoords({ x: Math.max(0, logoPosition.x - 15), y: logoPosition.y });
+                      } else if (e.target.value === 'right-logo') {
+                        setTextPositionCoords({ x: Math.min(100, logoPosition.x + 15), y: logoPosition.y });
+                      }
+                    }}
+                    className="w-full p-2 border rounded-md mb-2"
+                  >
+                    <option value="below-logo">Below Logo</option>
+                    <option value="above-logo">Above Logo</option>
+                    <option value="left-logo">Left of Logo</option>
+                    <option value="right-logo">Right of Logo</option>
+                    <option value="custom">Custom Position</option>
+                  </select>
                 </div>
+                
+                {textPosition === 'custom' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Text Position Controls</label>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setTextPositionCoords(prev => ({ ...prev, y: Math.max(0, prev.y - 5) }))}
+                        className="p-2 border rounded-md hover:bg-gray-100"
+                        aria-label="Move text up"
+                      >
+                        ↑
+                      </button>
+                      <button 
+                        onClick={() => setTextPositionCoords(prev => ({ ...prev, y: Math.min(100, prev.y + 5) }))}
+                        className="p-2 border rounded-md hover:bg-gray-100"
+                        aria-label="Move text down"
+                      >
+                        ↓
+                      </button>
+                      <button 
+                        onClick={() => setTextPositionCoords(prev => ({ ...prev, x: Math.max(0, prev.x - 5) }))}
+                        className="p-2 border rounded-md hover:bg-gray-100"
+                        aria-label="Move text left"
+                      >
+                        ←
+                      </button>
+                      <button 
+                        onClick={() => setTextPositionCoords(prev => ({ ...prev, x: Math.min(100, prev.x + 5) }))}
+                        className="p-2 border rounded-md hover:bg-gray-100"
+                        aria-label="Move text right"
+                      >
+                        →
+                      </button>
+                      <button 
+                        onClick={() => setTextPositionCoords({ x: 50, y: 50 })}
+                        className="p-2 border rounded-md hover:bg-gray-100 text-sm"
+                        aria-label="Reset text position"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Position: X: {textPositionCoords.x}%, Y: {textPositionCoords.y}% 
+                      (or use arrow keys when preview is focused)
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -724,7 +1046,7 @@ const CustomizationPage = () => {
           </div>
           
           {/* Action Buttons */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 sticky bottom-0 bg-white py-4 border-t">
             <div className="flex gap-4">
               <button
                 onClick={() => navigate(-1)}
@@ -743,7 +1065,7 @@ const CustomizationPage = () => {
               </button>
             </div>
             <button
-              onClick={() => navigate('/CustomizationTool ', { 
+              onClick={() => navigate('/CustomizationTool', { 
                 state: { 
                   productData: product,
                   selectedColor,
@@ -758,7 +1080,9 @@ const CustomizationPage = () => {
                   textPositionCoords,
                   selectedFabric,
                   selectedFilter,
-                  selectedPattern
+                  selectedPattern,
+                  patternOpacity,
+                  patternScale
                 } 
               })}
               className="w-full border-2 border-blue-600 bg-white text-blue-600 px-8 py-3 rounded-md hover:bg-blue-50 transition-colors font-medium"

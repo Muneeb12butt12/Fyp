@@ -3,7 +3,7 @@ import User from '../models/User.js';
 
 const protect = async (req, res, next) => {
   try {
-    // 1. Get token from header
+    // 1. Get token from header or cookie
     let token;
     
     if (
@@ -18,14 +18,14 @@ const protect = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route'
+        message: 'Not authorized, no token provided'
       });
     }
 
     // 2. Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // 3. Find user - Removed token check since we're not storing tokens in user document
+    // 3. Find user
     const user = await User.findById(decoded.id).select('-password');
 
     if (!user) {
@@ -35,8 +35,8 @@ const protect = async (req, res, next) => {
       });
     }
 
-    // 4. Check if user changed password after token was issued
-    if (user.changedPasswordAfter(decoded.iat)) {
+    // 4. Check if user changed password after token was issued (if implemented)
+    if (user.changedPasswordAfter && user.changedPasswordAfter(decoded.iat)) {
       return res.status(401).json({
         success: false,
         message: 'User recently changed password. Please login again.'
@@ -51,9 +51,13 @@ const protect = async (req, res, next) => {
 
     // Handle specific JWT errors
     if (error.name === 'JsonWebTokenError') {
+      const message = error.message === 'jwt malformed' 
+        ? 'Invalid or malformed token' 
+        : 'Invalid token';
       return res.status(401).json({
         success: false,
-        message: 'Invalid token. Please login again.'
+        message,
+        isTokenInvalid: true
       });
     }
 

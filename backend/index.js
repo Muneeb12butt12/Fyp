@@ -11,7 +11,6 @@ import profileRoutes from './routes/profileRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
-
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 // Initialize environment variables
@@ -121,7 +120,9 @@ function setupRoutes() {
         { name: 'auth', routes: ['/api/auth'] },
         { name: 'profile', routes: ['/api/profile'] },
         { name: 'orders', routes: ['/api/orders'] },
-        { name: 'products', routes: ['/api/products'] }
+        { name: 'products', routes: ['/api/products'] },
+        { name: 'users', routes: ['/api/users'] }
+
       ]
     };
     res.status(200).json(healthcheck);

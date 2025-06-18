@@ -1,676 +1,489 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar/Navbar";
-import Footer from "../components/Footer/Footer";
-import { FaUsers, FaBoxOpen, FaChartLine, FaCog, FaSignOutAlt, FaSearch, FaTrash, FaEdit, FaBan, FaCheck } from "react-icons/fa";
-import { Bar, Pie } from "react-chartjs-2";
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import React, { useState, useEffect } from 'react';
+import {
+  Box, Typography, Grid, Card, CardContent,
+  Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Avatar, IconButton,
+  Button, Select, MenuItem, CircularProgress,
+  Snackbar, Alert, Badge, Chip
+} from '@mui/material';
+import {
+  People as PeopleIcon,
+  ShoppingCart as OrdersIcon,
+  AttachMoney as RevenueIcon,
+  BarChart as ChartIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Check as CheckIcon,
+  Close as CloseIcon,
+  MoreVert as MoreIcon
+} from '@mui/icons-material';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
-// Register ChartJS components
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
+// Color scheme
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 const AdminDashboard = () => {
-  const navigate = useNavigate();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState({
-    users: true,
-    products: true,
-    orders: true
-  });
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const checkAuth = () => {
-      const authStatus = localStorage.getItem("adminAuthenticated") === "true";
-      setIsAuthenticated(authStatus);
-      if (!authStatus) {
-        navigate("/admin/login");
-      }
-    };
-    checkAuth();
-  }, [navigate]);
-
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [dashboardData, setDashboardData] = useState(null);
   const [users, setUsers] = useState([]);
-  const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [analytics, setAnalytics] = useState({
-    totalUsers: 0,
-    totalProducts: 0,
-    totalOrders: 0,
-    revenue: 0
-  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [selectedTab, setSelectedTab] = useState('dashboard');
+  const navigate = useNavigate();
 
-  // Fetch data functions
-  const fetchUsers = async () => {
-    try {
-      setLoading(prev => ({ ...prev, users: true }));
-      const response = await fetch('/api/admin/users', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        }
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch users');
-      
-      const data = await response.json();
-      setUsers(data);  // Changed from data.users to just data
-      setAnalytics(prev => ({
-        ...prev,
-        totalUsers: data.length
-      }));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(prev => ({ ...prev, users: false }));
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      setLoading(prev => ({ ...prev, products: true }));
-      const response = await fetch('/api/admin/products', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch products');
-      }
-      
-      const data = await response.json();
-      setProducts(data.products);
-      setAnalytics(prev => ({
-        ...prev,
-        totalProducts: data.products.length
-      }));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(prev => ({ ...prev, products: false }));
-    }
-  };
-
-  const fetchOrders = async () => {
-    try {
-      setLoading(prev => ({ ...prev, orders: true }));
-      const response = await fetch('/api/admin/orders', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        }
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch orders');
-      
-      const data = await response.json();
-      setOrders(data);  // Changed from data.orders to just data
-      setAnalytics(prev => ({
-        ...prev,
-        totalOrders: data.length,
-        revenue: data.reduce((sum, order) => sum + order.totalPrice, 0).toFixed(2)
-      }));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(prev => ({ ...prev, orders: false }));
-    }
-  };
-
+  // Fetch all data
   useEffect(() => {
-    if (!isAuthenticated) return;
-
     const fetchData = async () => {
-      await Promise.all([fetchUsers(), fetchProducts(), fetchOrders()]);
+      try {
+        setLoading(true);
+        const [dashboardRes, usersRes, ordersRes] = await Promise.all([
+          axios.get('/api/admin/dashboard'),
+          axios.get('/api/admin/users'),
+          axios.get('/api/admin/orders')
+        ]);
+        
+        setDashboardData(dashboardRes.data);
+        setUsers(usersRes.data);
+        setOrders(ordersRes.data);
+        setLoading(false);
+      } catch (err) {
+        setError(err.response?.data?.message || 'Failed to fetch data');
+        setLoading(false);
+      }
     };
 
     fetchData();
-  }, [isAuthenticated]);
+  }, []);
 
-  // Handle user suspension/reactivation
-  const toggleUserStatus = async (userId) => {
+  // Handle user status toggle
+  const handleToggleUserStatus = async (userId, currentStatus) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update user status');
-      }
-      
-      const updatedUser = await response.json();
+      const res = await axios.patch(`/api/admin/users/${userId}/status`);
       setUsers(users.map(user => 
-        user._id === updatedUser._id ? updatedUser : user
+        user._id === userId ? { ...user, active: !user.active } : user
       ));
+      showSnackbar(`User ${currentStatus ? 'deactivated' : 'activated'} successfully`, 'success');
     } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  // Handle product deletion
-  const deleteProduct = async (productId) => {
-    try {
-      const response = await fetch(`/api/admin/products/${productId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete product');
-      }
-      
-      setProducts(products.filter(product => product._id !== productId));
-      setAnalytics(prev => ({
-        ...prev,
-        totalProducts: prev.totalProducts - 1
-      }));
-    } catch (err) {
-      setError(err.message);
+      showSnackbar(err.response?.data?.message || 'Failed to update user status', 'error');
     }
   };
 
   // Handle order status update
-  const updateOrderStatus = async (orderId, newStatus) => {
+  const handleOrderStatusUpdate = async (orderId, newStatus) => {
     try {
-      const response = await fetch(`/api/admin/orders/${orderId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update order status');
-      }
-      
-      const updatedOrder = await response.json();
+      await axios.patch(`/api/admin/orders/${orderId}/status`, { status: newStatus });
       setOrders(orders.map(order => 
-        order._id === updatedOrder._id ? updatedOrder : order
+        order._id === orderId ? { ...order, status: newStatus } : order
       ));
+      showSnackbar('Order status updated successfully', 'success');
     } catch (err) {
-      setError(err.message);
+      showSnackbar(err.response?.data?.message || 'Failed to update order status', 'error');
     }
   };
 
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem("adminAuthenticated");
-    localStorage.removeItem("adminToken");
-    navigate("/admin/login");
+  // Handle user deletion
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    
+    try {
+      await axios.delete(`/api/admin/users/${userId}`);
+      setUsers(users.filter(user => user._id !== userId));
+      showSnackbar('User deleted successfully', 'success');
+    } catch (err) {
+      showSnackbar(err.response?.data?.message || 'Failed to delete user', 'error');
+    }
   };
 
-  // Filter data based on search term
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredProducts = products.filter(product => 
-    product.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredOrders = orders.filter(order => 
-    order._id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (order.user && order.user.name && order.user.name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  // Chart data
-  const salesData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Sales ($)',
-        data: [1200, 1900, 3000, 2500, 2000, 3000],
-        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1
-      }
-    ]
+  // Handle order deletion
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to delete this order?')) return;
+    
+    try {
+      await axios.delete(`/api/admin/orders/${orderId}`);
+      setOrders(orders.filter(order => order._id !== orderId));
+      showSnackbar('Order deleted successfully', 'success');
+    } catch (err) {
+      showSnackbar(err.response?.data?.message || 'Failed to delete order', 'error');
+    }
   };
 
-  const orderStatusData = {
-    labels: ['Pending', 'Shipped', 'Delivered', 'Cancelled'],
-    datasets: [
-      {
-        data: [
-          orders.filter(o => o.status === 'pending').length,
-          orders.filter(o => o.status === 'shipped').length,
-          orders.filter(o => o.status === 'delivered').length,
-          orders.filter(o => o.status === 'cancelled').length
-        ],
-        backgroundColor: [
-          'rgba(255, 206, 86, 0.6)',
-          'rgba(54, 162, 235, 0.6)',
-          'rgba(75, 192, 192, 0.6)',
-          'rgba(255, 99, 132, 0.6)'
-        ],
-        borderColor: [
-          'rgba(255, 206, 86, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(255, 99, 132, 1)'
-        ],
-        borderWidth: 1
-      }
-    ]
+  // Show snackbar notification
+  const showSnackbar = (message, severity) => {
+    setSnackbar({ open: true, message, severity });
   };
 
-  // Chart options
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-    },
+  // Close snackbar
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+        <Typography color="error">{error}</Typography>
+      </Box>
+    );
+  }
 
   return (
-    <div className="bg-white dark:bg-gray-900 dark:text-white duration-200 min-h-screen">
-      <Navbar />
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>Admin Dashboard</Typography>
       
-      <div className="flex">
-        {/* Sidebar */}
-        <div className="w-64 bg-gray-800 text-white min-h-screen p-4">
-          <div className="text-xl font-bold mb-8 p-2 border-b border-gray-700">Admin Panel</div>
-          
-          <nav>
-            <button 
-              onClick={() => setActiveTab("dashboard")}
-              className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${activeTab === "dashboard" ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
-            >
-              <FaChartLine className="mr-3" /> Dashboard
-            </button>
-            
-            <button 
-              onClick={() => setActiveTab("users")}
-              className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${activeTab === "users" ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
-            >
-              <FaUsers className="mr-3" /> Users
-            </button>
-            
-            <button 
-              onClick={() => setActiveTab("products")}
-              className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${activeTab === "products" ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
-            >
-              <FaBoxOpen className="mr-3" /> Products
-            </button>
-            
-            <button 
-              onClick={() => setActiveTab("orders")}
-              className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${activeTab === "orders" ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
-            >
-              <FaBoxOpen className="mr-3" /> Orders
-            </button>
-            
-            <button 
-              onClick={() => setActiveTab("settings")}
-              className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${activeTab === "settings" ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
-            >
-              <FaCog className="mr-3" /> Settings
-            </button>
-            
-            <button 
-              onClick={() => navigate("/")}
-              className="flex items-center w-full p-3 mb-2 rounded hover:bg-gray-700 transition-colors"
-            >
-              <FaSignOutAlt className="mr-3" /> Back to Site
-            </button>
+      {/* Navigation Tabs */}
+      <Box sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+        <Button 
+          onClick={() => setSelectedTab('dashboard')} 
+          color={selectedTab === 'dashboard' ? 'primary' : 'inherit'}
+        >
+          Dashboard
+        </Button>
+        <Button 
+          onClick={() => setSelectedTab('users')} 
+          color={selectedTab === 'users' ? 'primary' : 'inherit'}
+          sx={{ ml: 2 }}
+        >
+          Users
+        </Button>
+        <Button 
+          onClick={() => setSelectedTab('orders')} 
+          color={selectedTab === 'orders' ? 'primary' : 'inherit'}
+          sx={{ ml: 2 }}
+        >
+          Orders
+        </Button>
+      </Box>
 
-            <button 
-              onClick={handleLogout}
-              className="flex items-center w-full p-3 mb-2 rounded hover:bg-gray-700 transition-colors"
-            >
-              <FaSignOutAlt className="mr-3" /> Logout
-            </button>
-          </nav>
-        </div>
+      {/* Dashboard Tab */}
+      {selectedTab === 'dashboard' && dashboardData && (
+        <>
+          {/* Summary Cards */}
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center">
+                    <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                      <PeopleIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography color="textSecondary">Total Users</Typography>
+                      <Typography variant="h5">{dashboardData.totalUsers}</Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        {dashboardData.activeUsers} active
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center">
+                    <Avatar sx={{ bgcolor: 'secondary.main', mr: 2 }}>
+                      <OrdersIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography color="textSecondary">Total Orders</Typography>
+                      <Typography variant="h5">{dashboardData.totalOrders}</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center">
+                    <Avatar sx={{ bgcolor: 'success.main', mr: 2 }}>
+                      <RevenueIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography color="textSecondary">Total Revenue</Typography>
+                      <Typography variant="h5">
+                        ${dashboardData.totalRevenue.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center">
+                    <Avatar sx={{ bgcolor: 'warning.main', mr: 2 }}>
+                      <ChartIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography color="textSecondary">Analytics</Typography>
+                      <Typography variant="h5">Reports</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
 
-        {/* Main Content */}
-        <div className="flex-1 p-8">
-          {/* Search Bar */}
-          <div className="mb-6 flex justify-between items-center">
-            <h1 className="text-3xl font-bold capitalize">{activeTab}</h1>
-            <div className="relative">
-              <FaSearch className="absolute left-3 top-3 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="pl-10 pr-4 py-2 border rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 transition-colors"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
-              <p>{error}</p>
-              <button 
-                onClick={() => setError(null)}
-                className="mt-2 text-red-700 hover:text-red-900"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-
-          {/* Loading State */}
-          {(loading.users || loading.products || loading.orders) && activeTab !== "settings" && (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-          )}
-
-          {/* Dashboard Tab */}
-          {activeTab === "dashboard" && !loading.users && !loading.products && !loading.orders && (
-            <div>
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div className="bg-blue-50 dark:bg-gray-800 p-6 rounded-lg shadow transition-transform hover:scale-105">
-                  <h3 className="text-gray-500 dark:text-gray-400">Total Users</h3>
-                  <p className="text-3xl font-bold">{analytics.totalUsers}</p>
-                </div>
-                <div className="bg-green-50 dark:bg-gray-800 p-6 rounded-lg shadow transition-transform hover:scale-105">
-                  <h3 className="text-gray-500 dark:text-gray-400">Total Products</h3>
-                  <p className="text-3xl font-bold">{analytics.totalProducts}</p>
-                </div>
-                <div className="bg-purple-50 dark:bg-gray-800 p-6 rounded-lg shadow transition-transform hover:scale-105">
-                  <h3 className="text-gray-500 dark:text-gray-400">Total Orders</h3>
-                  <p className="text-3xl font-bold">{analytics.totalOrders}</p>
-                </div>
-                <div className="bg-yellow-50 dark:bg-gray-800 p-6 rounded-lg shadow transition-transform hover:scale-105">
-                  <h3 className="text-gray-500 dark:text-gray-400">Total Revenue</h3>
-                  <p className="text-3xl font-bold">${analytics.revenue}</p>
-                </div>
-              </div>
-
-              {/* Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold mb-4">Sales Overview</h3>
-                  <Bar data={salesData} options={chartOptions} />
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold mb-4">Order Status</h3>
-                  <Pie data={orderStatusData} options={chartOptions} />
-                </div>
-              </div>
-
-              {/* Recent Orders */}
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-4">Recent Orders</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-4">Order ID</th>
-                        <th className="text-left py-3 px-4">Customer</th>
-                        <th className="text-left py-3 px-4">Amount</th>
-                        <th className="text-left py-3 px-4">Status</th>
-                        <th className="text-left py-3 px-4">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.slice(0, 5).map(order => (
-                        <tr key={order._id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="py-3 px-4">{order._id.substring(0, 8)}...</td>
-                          <td className="py-3 px-4">{order.user?.name || 'Guest'}</td>
-                          <td className="py-3 px-4">${order.totalAmount.toFixed(2)}</td>
-                          <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                              order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">{new Date(order.createdAt).toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Users Tab */}
-          {activeTab === "users" && !loading.users && (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4">Name</th>
-                      <th className="text-left py-3 px-4">Email</th>
-                      <th className="text-left py-3 px-4">Role</th>
-                      <th className="text-left py-3 px-4">Status</th>
-                      <th className="text-left py-3 px-4">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map(user => (
-                      <tr key={user._id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="py-3 px-4">{user.name}</td>
-                        <td className="py-3 px-4">{user.email}</td>
-                        <td className="py-3 px-4 capitalize">{user.role}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {user.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <button 
-                            onClick={() => toggleUserStatus(user._id)}
-                            className={`p-2 rounded-full transition-colors ${
-                              user.status === 'active' ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200'
-                            }`}
-                            title={user.status === 'active' ? 'Suspend User' : 'Activate User'}
-                          >
-                            {user.status === 'active' ? <FaBan /> : <FaCheck />}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Products Tab */}
-          {activeTab === "products" && !loading.products && (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Product List</h3>
-                <Link 
-                  to="/admin/products/add"
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
-                >
-                  Add Product
-                </Link>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4">Name</th>
-                      <th className="text-left py-3 px-4">Price</th>
-                      <th className="text-left py-3 px-4">Stock</th>
-                      <th className="text-left py-3 px-4">Status</th>
-                      <th className="text-left py-3 px-4">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProducts.map(product => (
-                      <tr key={product._id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="py-3 px-4">{product.name}</td>
-                        <td className="py-3 px-4">${product.price.toFixed(2)}</td>
-                        <td className="py-3 px-4">{product.stock}</td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            product.stock <= 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                          }`}>
-                            {product.stock <= 0 ? 'Out of Stock' : 'In Stock'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 flex space-x-2">
-                          <Link
-                            to={`/admin/products/edit/${product._id}`}
-                            className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors"
-                            title="Edit Product"
-                          >
-                            <FaEdit />
-                          </Link>
-                          <button 
-                            onClick={() => deleteProduct(product._id)}
-                            className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition-colors"
-                            title="Delete Product"
-                          >
-                            <FaTrash />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Orders Tab */}
-          {activeTab === "orders" && !loading.orders && (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4">Order ID</th>
-                      <th className="text-left py-3 px-4">Customer</th>
-                      <th className="text-left py-3 px-4">Amount</th>
-                      <th className="text-left py-3 px-4">Status</th>
-                      <th className="text-left py-3 px-4">Date</th>
-                      <th className="text-left py-3 px-4">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.map(order => (
-                      <tr key={order._id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="py-3 px-4">{order._id.substring(0, 8)}...</td>
-                        <td className="py-3 px-4">{order.user?.name || 'Guest'}</td>
-                        <td className="py-3 px-4">${order.totalAmount.toFixed(2)}</td>
-                        <td className="py-3 px-4">
-                          <select
-                            value={order.status}
-                            onChange={(e) => updateOrderStatus(order._id, e.target.value)}
-                            className={`px-2 py-1 rounded text-xs ${
-                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                              order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                              'bg-red-100 text-red-800'
-                            }`}
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="shipped">Shipped</option>
-                            <option value="delivered">Delivered</option>
-                            <option value="cancelled">Cancelled</option>
-                          </select>
-                        </td>
-                        <td className="py-3 px-4">{new Date(order.createdAt).toLocaleDateString()}</td>
-                        <td className="py-3 px-4">
-                          <Link
-                            to={`/admin/orders/${order._id}`}
-                            className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors"
-                            title="View Details"
-                          >
-                            <FaEdit />
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Settings Tab */}
-          {activeTab === "settings" && (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-              <h3 className="text-lg font-semibold mb-6">System Settings</h3>
-              
-              <div className="space-y-6">
-                <div className="border-b pb-4">
-                  <h4 className="font-medium mb-2">General Settings</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Site Name</label>
-                      <input 
-                        type="text" 
-                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        defaultValue="SportswearXpress"
+          {/* Charts Row */}
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            {/* Monthly Revenue Chart */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Monthly Revenue</Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={dashboardData.monthlyRevenue}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="_id" 
+                        tickFormatter={(value) => `${value.month}/${value.year}`}
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Maintenance Mode</label>
-                      <select className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option>Disabled</option>
-                        <option>Enabled</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-b pb-4">
-                  <h4 className="font-medium mb-2">Payment Settings</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Stripe Public Key</label>
-                      <input 
-                        type="text" 
-                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="pk_test_..."
+                      <YAxis />
+                      <Tooltip 
+                        formatter={(value) => [`$${value}`, 'Revenue']}
+                        labelFormatter={(value) => `Month: ${value.month}/${value.year}`}
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Stripe Secret Key</label>
-                      <input 
-                        type="text" 
-                        className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="sk_test_..."
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="total" 
+                        name="Revenue" 
+                        stroke="#8884d8" 
+                        activeDot={{ r: 8 }} 
                       />
-                    </div>
-                  </div>
-                </div>
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
 
-                <div>
-                  <button className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors">
-                    Save Settings
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+            {/* Orders by Status Chart */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>Orders by Status</Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={dashboardData.ordersByStatus}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="count"
+                        nameKey="_id"
+                      >
+                        {dashboardData.ordersByStatus.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value) => [value, 'Orders']}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
 
-      <Footer />
-    </div>
+          {/* Recent Orders */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Recent Orders</Typography>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Order ID</TableCell>
+                      <TableCell>Customer</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Amount</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {dashboardData.recentOrders.map((order) => (
+                      <TableRow key={order._id}>
+                        <TableCell>{order.orderId}</TableCell>
+                        <TableCell>
+                          {order.user?.name || 'Unknown User'}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>${order.totalPrice.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={order.status} 
+                            color={
+                              order.status === 'delivered' ? 'success' : 
+                              order.status === 'cancelled' ? 'error' : 'primary'
+                            } 
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton onClick={() => navigate(`/admin/orders/${order._id}`)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Users Tab */}
+      {selectedTab === 'users' && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>User Management</Typography>
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>User</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user._id}>
+                      <TableCell>
+                        <Box display="flex" alignItems="center">
+                          <Avatar src={user.avatar} sx={{ mr: 2 }} />
+                          {user.name}
+                        </Box>
+                      </TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={user.isAdmin ? 'Admin' : 'User'} 
+                          color={user.isAdmin ? 'primary' : 'default'} 
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          color={user.active ? 'success' : 'error'}
+                          badgeContent={user.active ? 'Active' : 'Inactive'}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <IconButton onClick={() => handleToggleUserStatus(user._id, user.active)}>
+                          {user.active ? <CloseIcon color="error" /> : <CheckIcon color="success" />}
+                        </IconButton>
+                        <IconButton onClick={() => navigate(`/admin/users/${user._id}`)}>
+                          <EditIcon color="primary" />
+                        </IconButton>
+                        <IconButton onClick={() => handleDeleteUser(user._id)}>
+                          <DeleteIcon color="error" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Orders Tab */}
+      {selectedTab === 'orders' && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Order Management</Typography>
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Order ID</TableCell>
+                    <TableCell>Customer</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Total</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {orders.map((order) => (
+                    <TableRow key={order._id}>
+                      <TableCell>{order.orderId}</TableCell>
+                      <TableCell>
+                        {order.user?.name || 'Unknown User'}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>${order.totalPrice.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Select
+                          value={order.status}
+                          onChange={(e) => handleOrderStatusUpdate(order._id, e.target.value)}
+                          size="small"
+                          sx={{ minWidth: 120 }}
+                        >
+                          <MenuItem value="pending">Pending</MenuItem>
+                          <MenuItem value="processing">Processing</MenuItem>
+                          <MenuItem value="shipped">Shipped</MenuItem>
+                          <MenuItem value="delivered">Delivered</MenuItem>
+                          <MenuItem value="cancelled">Cancelled</MenuItem>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <IconButton onClick={() => navigate(`/admin/orders/${order._id}`)}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton onClick={() => handleDeleteOrder(order._id)}>
+                          <DeleteIcon color="error" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 };
 

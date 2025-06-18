@@ -5,10 +5,12 @@ import {
   getUserById,
   updateUser,
   deleteUser,
+  toggleUserStatus,
   getOrders,
   getOrderById,
-  updateOrderToDelivered,
-  deleteOrder
+  updateOrderStatus,
+  deleteOrder,
+  getDashboardAnalytics
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -22,13 +24,22 @@ router.route('/users/:id')
   .put(protect, admin, updateUser)
   .delete(protect, admin, deleteUser);
 
+router.route('/users/:id/status')
+  .patch(protect, admin, toggleUserStatus);
+
 // Order routes
 router.route('/orders')
   .get(protect, admin, getOrders);
 
 router.route('/orders/:id')
   .get(protect, admin, getOrderById)
-  .put(protect, admin, updateOrderToDelivered)
   .delete(protect, admin, deleteOrder);
+
+router.route('/orders/:id/status')
+  .patch(protect, admin, updateOrderStatus);
+
+// Dashboard route
+router.route('/dashboard')
+  .get(protect, admin, getDashboardAnalytics);
 
 export default router;

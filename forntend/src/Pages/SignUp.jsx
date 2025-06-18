@@ -14,7 +14,7 @@ const SignUp = () => {
     phone: '',
     password: '',
     confirmPassword: '',
-    userType: 'buyer', // Default to buyer
+    userType: '', // Default to buyer
     agreeToTerms: false
   });
 

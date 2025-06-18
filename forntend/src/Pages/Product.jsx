@@ -222,10 +222,10 @@ const Product = () => {
     AOS.refresh();
   }, []);
 
-  const handleCategoryClick = (category) => {
-    navigate(`/sportswear/${category.id}`, { state: { categoryData: category } });
-  };
-
+// Update the handleCategoryClick function in Product.js
+const handleCategoryClick = (category) => {
+  navigate(`/sportswear/${category.id}`, { state: { categoryData: category } });
+};
   const handleOrderNow = (product, e) => {
     e.stopPropagation();
     navigate(`/product/${product.id}`, { state: { productData: product } });
@@ -284,11 +284,12 @@ const Product = () => {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold">{category.name} Collection</h2>
               <Link
-                to={`/sportswear/${category.id}`}
-                className="text-primary hover:underline"
-              >
-                View All
-              </Link>
+  to={`/sportswear/${category.id}`}
+  state={{ categoryData: category }}
+  className="text-primary hover:underline"
+>
+  View All
+</Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {category.items.map((product) => (

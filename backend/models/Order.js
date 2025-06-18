@@ -33,6 +33,7 @@ const orderSchema = new mongoose.Schema({
     type: String,
     unique: true,
     required: true,
+    sparse: true ,
     default: () => `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`
   },
   user: {

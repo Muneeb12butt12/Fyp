@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import Image1 from "../../assets/hero/women.png";
 import Image2 from "../../assets/hero/shopping.png";
 import Image3 from "../../assets/hero/sale.png";
@@ -29,6 +30,15 @@ const ImageList = [
 ];
 
 const Hero = ({ handleOrderPopup }) => {
+  const navigate = useNavigate();
+  
+  const handleShopNow = () => {
+    if (handleOrderPopup) {
+      handleOrderPopup();
+    }
+    navigate("/product");
+  };
+
   var settings = {
     dots: false,
     arrows: false,
@@ -82,7 +92,7 @@ const Hero = ({ handleOrderPopup }) => {
                     className="mt-4"
                   >
                     <button
-                      onClick={handleOrderPopup}
+                      onClick={handleShopNow}
                       className="relative inline-flex items-center justify-center px-8 py-3 overflow-hidden font-medium text-white transition-all bg-gradient-to-r from-blue-600 to-red-600 rounded-full hover:from-blue-500 hover:to-red-500 group shadow-lg hover:shadow-xl"
                     >
                       <span className="relative z-10 flex items-center gap-2">
