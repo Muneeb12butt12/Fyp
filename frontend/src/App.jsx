@@ -32,6 +32,8 @@ import EditProductPage from './Pages/EditProductPage';
 import Products from "./Pages/Products";
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCart } from './redux/features/cartSlice';
+import SellerApproval from "./Pages/SellerApproval";
+import Suspension from "./Pages/Suspension";
 
 // Protected Route component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -60,7 +62,6 @@ const AppRoutes = () => {
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/product" element={<ProductPage />} />
-      <Route path="/checkout" element={<Checkout />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/verifycode" element={<VerifyCode />} />
       <Route path="/reset-password" element={<ResetPassword />} />
@@ -72,7 +73,7 @@ const AppRoutes = () => {
       <Route path="/products" element={<Products />} />
       {/* Protected Routes */}
       <Route
-        path="/checkout/:sellerId"
+        path="/checkout"
         element={
           <ProtectedRoute allowedRoles={['buyer']}>
             <Checkout />
@@ -164,6 +165,22 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['seller']}>
             <EditProductPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/seller-approval/:sellerId"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <SellerApproval />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/suspension"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <Suspension />
           </ProtectedRoute>
         }
       />

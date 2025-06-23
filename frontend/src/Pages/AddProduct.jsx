@@ -8,24 +8,48 @@ import Footer from "../components/Footer/Footer";
 
 const AddProduct = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
-    // Check if user is verified
+    console.log('AddProduct useEffect - user:', user);
+    
+    // Check if user is logged in
     if (!user) {
+      console.log('No user found, redirecting to signin');
       toast.error('Please sign in to add products');
       navigate('/signin');
       return;
     }
 
+    // Check if user is a seller
+    if (user.role !== 'seller') {
+      console.log('User is not a seller, redirecting to dashboard');
+      toast.error('Only sellers can add products');
+      navigate('/');
+      return;
+    }
+
+    // Check if user is verified
     if (!user.isVerified) {
+      console.log('User is not verified, redirecting to seller dashboard');
       toast.error('Your account needs to be verified before you can add products. Please wait for admin approval.');
       navigate('/seller/dashboard');
       return;
     }
+
+    console.log('User is authenticated and verified, showing AddProduct page');
   }, [user, navigate]);
+
+  // Show loading while authentication is being checked
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   // Sport types from the model
   const sportTypes = [
@@ -149,9 +173,9 @@ const AddProduct = () => {
       }
 
       // Log the API URL for debugging
-      console.log('API URL:', `${import.meta.env.VITE_API_URL}/api/products`);
+      console.log('API URL:', `/api/products`);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
+      const response = await fetch(`/api/products`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

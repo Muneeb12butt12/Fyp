@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import axios from "axios";
@@ -8,15 +8,14 @@ import Navbar from "../components/Navbar/Navbar";
 import Footer from "../components/Footer/Footer";
 
 const Checkout = () => {
-  const { sellerId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { cart, clearCart, getCartTotal } = useCart();
   
-  const [seller, setSeller] = useState(null);
+  const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [sellerLoading, setSellerLoading] = useState(true);
+  const [adminLoading, setAdminLoading] = useState(true);
   const [sameAsShipping, setSameAsShipping] = useState(false);
   const [formData, setFormData] = useState({
     shippingAddress: {
@@ -42,42 +41,29 @@ const Checkout = () => {
     paymentScreenshot: null,
   });
 
-  // Validate cart and seller
+  // Validate cart and admin
   useEffect(() => {
-    if (!sellerId) {
-      Swal.fire("Error", "Invalid seller information", "error");
-      navigate("/cart");
-      return;
-    }
-
     if (!cart || cart.length === 0) {
       Swal.fire("Error", "Your cart is empty", "error");
       navigate("/cart");
       return;
     }
 
-    // Check if all items are from the same seller
-    const firstItemSellerId = cart[0].sellerId || cart[0].seller?._id || cart[0].seller;
-    const allSameSeller = cart.every(item => {
+    // Group items by seller for multi-seller support
+    const itemsBySeller = {};
+    cart.forEach(item => {
       const itemSellerId = item.sellerId || item.seller?._id || item.seller;
-      return itemSellerId === firstItemSellerId;
+      if (!itemsBySeller[itemSellerId]) {
+        itemsBySeller[itemSellerId] = [];
+      }
+      itemsBySeller[itemSellerId].push(item);
     });
 
-    if (!allSameSeller) {
-      Swal.fire("Error", "All items in cart must be from the same seller", "error");
-      navigate("/cart");
-      return;
-    }
-
-    if (firstItemSellerId !== sellerId) {
-      Swal.fire("Error", "Seller mismatch", "error");
-      navigate("/cart");
-      return;
-    }
+    console.log("Items grouped by seller:", itemsBySeller);
 
     // Validate cart data locally first
     validateCartData();
-  }, [sellerId, cart, navigate]);
+  }, [cart, navigate]);
 
   // Auto-update billing address when shipping address changes and checkbox is checked
   useEffect(() => {
@@ -92,7 +78,6 @@ const Checkout = () => {
   const validateCartData = async () => {
     try {
       console.log("Starting cart validation with cart data:", cart);
-      console.log("Seller ID:", sellerId);
       
       // Basic local validation
       for (const item of cart) {
@@ -121,7 +106,7 @@ const Checkout = () => {
       }
       
       console.log("Cart validated locally successfully");
-      fetchSellerDetails();
+      fetchAdminDetails();
     } catch (error) {
       console.error("Local cart validation error:", error);
       Swal.fire("Error", "Cart validation failed", "error");
@@ -129,70 +114,70 @@ const Checkout = () => {
     }
   };
 
-  const fetchSellerDetails = async () => {
+  const fetchAdminDetails = async () => {
     try {
-      console.log("Fetching seller details for sellerId:", sellerId);
-      setSellerLoading(true);
+      console.log("Fetching admin details for checkout");
+      setAdminLoading(true);
       
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const url = `${API_URL}/api/seller/${sellerId}/profile`;
+      const url = `${API_URL}/api/admin/checkout-details`;
       console.log("Making API call to:", url);
       
-      // Use our new seller profile API endpoint
+      // Use our new admin checkout details API endpoint
       const response = await axios.get(url);
       
-      console.log("Seller details response:", response.data);
+      console.log("Admin details response:", response.data);
       console.log("Response status:", response.status);
       
       if (response.data && response.data.success) {
-        const sellerData = {
-          _id: sellerId,
-          businessName: response.data.businessInfo?.businessName || response.data.fullName || "Seller",
-          fullName: response.data.fullName,
-          bankAccounts: response.data.bankAccounts || [],
-          wallets: response.data.wallets || [],
-          status: response.data.status
+        const adminData = {
+          _id: response.data.data._id,
+          businessName: response.data.data.businessName || "SportWearXpress",
+          fullName: response.data.data.fullName,
+          bankAccounts: response.data.data.bankAccounts || [],
+          wallets: response.data.data.wallets || [],
+          status: response.data.data.status
         };
       
-        console.log("Processed seller data:", sellerData);
-        console.log("Bank accounts count:", sellerData.bankAccounts.length);
-        console.log("Wallets count:", sellerData.wallets.length);
-        console.log("Bank accounts:", sellerData.bankAccounts);
-        console.log("Wallets:", sellerData.wallets);
+        console.log("Processed admin data:", adminData);
+        console.log("Bank accounts count:", adminData.bankAccounts.length);
+        console.log("Wallets count:", adminData.wallets.length);
+        console.log("Bank accounts:", adminData.bankAccounts);
+        console.log("Wallets:", adminData.wallets);
         
-        setSeller(sellerData);
-        console.log("Seller data set:", sellerData);
+        setAdmin(adminData);
+        console.log("Admin data set:", adminData);
       } else {
         console.error("Invalid response format:", response.data);
         throw new Error("Invalid response format");
       }
       
     } catch (error) {
-      console.error("Error fetching seller details:", error);
+      console.error("Error fetching admin details:", error);
       console.error("Error response:", error.response?.data);
       console.error("Error status:", error.response?.status);
       console.error("Error message:", error.message);
       
-      // Create fallback seller data if API fails
-      const fallbackSeller = {
-        _id: sellerId,
-        businessName: "Seller",
+      // Create fallback admin data if API fails
+      const fallbackAdmin = {
+        _id: "admin",
+        businessName: "SportWearXpress",
         bankAccounts: [],
         wallets: []
       };
       
-      setSeller(fallbackSeller);
-      console.log("Using fallback seller data:", fallbackSeller);
+      setAdmin(fallbackAdmin);
+      console.log("Using fallback admin data:", fallbackAdmin);
       
       // Show warning but don't block checkout
       Swal.fire({
         title: "Warning",
-        text: "Could not fetch seller payment details. You can still proceed with checkout.",
+        text: "Could not fetch admin payment details. You can still proceed with checkout.",
         icon: "warning",
         confirmButtonText: "Continue"
       });
     } finally {
-      setSellerLoading(false);
+      setAdminLoading(false);
       setLoading(false);
     }
   };
@@ -284,35 +269,40 @@ const Checkout = () => {
     try {
       const formDataToSend = new FormData();
       
-      // Add order details
-      formDataToSend.append("sellerId", sellerId);
-      formDataToSend.append("totalAmount", getCartTotal() + 10); // subtotal + shipping
-      formDataToSend.append("subtotal", getCartTotal());
-      formDataToSend.append("paidToBankAccount", formData.paidToBankAccount);
-      formDataToSend.append("paidToWallet", formData.paidToWallet);
-      formDataToSend.append("paymentScreenshot", formData.paymentScreenshot);
-      
-      // Add addresses
-      formDataToSend.append("shippingAddress", JSON.stringify(formData.shippingAddress));
-      formDataToSend.append("billingAddress", JSON.stringify(formData.billingAddress));
-      
-      // Add cart items (ensure data integrity)
-      const cartItemsForOrder = cart.map(item => ({
+      // Group cart items by seller
+      const itemsBySeller = {};
+      cart.forEach(item => {
+        const sellerId = item.sellerId || item.seller?._id || item.seller;
+        if (!itemsBySeller[sellerId]) {
+          itemsBySeller[sellerId] = [];
+        }
+        itemsBySeller[sellerId].push({
         product: item._id,
         quantity: item.quantity,
         price: item.price,
-        variant: {
           color: item.selectedColor,
           size: item.selectedSize,
-        },
         name: item.name,
         images: item.images
+        });
+      });
+
+      // Convert to array format expected by backend
+      const cartItems = Object.keys(itemsBySeller).map(sellerId => ({
+        sellerId,
+        items: itemsBySeller[sellerId],
+        paidToBankAccount: formData.paidToBankAccount,
+        paidToWallet: formData.paidToWallet
       }));
       
-      formDataToSend.append("items", JSON.stringify(cartItemsForOrder));
+      // Add order details
+      formDataToSend.append("cartItems", JSON.stringify(cartItems));
+      formDataToSend.append("shippingAddress", JSON.stringify(formData.shippingAddress));
+      formDataToSend.append("billingAddress", JSON.stringify(formData.billingAddress));
+      formDataToSend.append("paymentScreenshot", formData.paymentScreenshot);
 
-      const response = await axios.post("/api/v1/payment/create-payment-order", formDataToSend, {
-        headers: {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await axios.post(`${API_URL}/api/v1/order/create-from-cart`, formDataToSend, {        headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
           "Content-Type": "multipart/form-data",
         },
@@ -320,7 +310,7 @@ const Checkout = () => {
 
       Swal.fire({
         title: "Order Placed Successfully!",
-        text: "Your order has been placed and is pending seller approval.",
+        text: "Your order has been placed and is pending admin approval.",
         icon: "success",
         confirmButtonText: "View Orders",
       }).then(() => {
@@ -402,27 +392,27 @@ const Checkout = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">Payment Details</h2>
             
-            {/* Seller Payment Information */}
+            {/* Admin Payment Information */}
             <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Pay to Seller</h3>
+              <h3 className="font-semibold text-blue-900 mb-2">SportWearXpress</h3>
               
-              {sellerLoading ? (
+              {adminLoading ? (
                 <div className="flex items-center justify-center py-4">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-blue-700">Loading seller details...</span>
+                  <span className="ml-2 text-blue-700">Loading admin details...</span>
                 </div>
-              ) : seller ? (
+              ) : admin ? (
                 <>
-                  {seller.businessName && (
+                  {admin.businessName && (
                     <p className="text-sm text-blue-800 mb-2">
-                      <strong>Business:</strong> {seller.businessName}
+                      <strong>Business:</strong> {admin.businessName}
                     </p>
                   )}
                   
-                  {seller.bankAccounts && seller.bankAccounts.length > 0 && (
+                  {admin.bankAccounts && admin.bankAccounts.length > 0 && (
                     <div className="mb-3">
                       <h4 className="font-medium text-sm text-blue-800">Bank Accounts:</h4>
-                      {seller.bankAccounts.map((account, index) => (
+                      {admin.bankAccounts.map((account, index) => (
                         <div key={index} className="text-sm text-blue-700 ml-2 mb-1 p-2 bg-blue-50 rounded">
                           <div><strong>Bank:</strong> {account.type === 'other' ? account.otherBankName : account.type}</div>
                           <div><strong>Account Title:</strong> {account.accountTitle}</div>
@@ -433,10 +423,10 @@ const Checkout = () => {
                     </div>
                   )}
                   
-                  {seller.wallets && seller.wallets.length > 0 && (
+                  {admin.wallets && admin.wallets.length > 0 && (
                     <div>
                       <h4 className="font-medium text-sm text-blue-800">Wallets:</h4>
-                      {seller.wallets.map((wallet, index) => (
+                      {admin.wallets.map((wallet, index) => (
                         <div key={index} className="text-sm text-blue-700 ml-2 mb-1 p-2 bg-blue-50 rounded">
                           <div><strong>Type:</strong> {wallet.type === 'other' ? wallet.otherWalletName : wallet.type}</div>
                           <div><strong>Account Title:</strong> {wallet.accountTitle}</div>
@@ -446,13 +436,13 @@ const Checkout = () => {
                     </div>
                   )}
                   
-                  {(!seller.bankAccounts || seller.bankAccounts.length === 0) && 
-                   (!seller.wallets || seller.wallets.length === 0) && (
+                  {(!admin.bankAccounts || admin.bankAccounts.length === 0) && 
+                   (!admin.wallets || admin.wallets.length === 0) && (
                     <div className="text-sm text-orange-600 p-3 bg-orange-50 rounded-lg border border-orange-200">
                       <p className="font-medium mb-2">No payment methods available</p>
                       <p className="text-xs">
-                        The seller hasn't added any payment methods to their profile yet. 
-                        Please contact the seller to add their bank accounts or digital wallets 
+                        SportWearXpress hasn't added any payment methods to their profile yet. 
+                        Please contact SportWearXpress support to add their bank accounts or digital wallets 
                         so you can complete your purchase.
                       </p>
                     </div>
@@ -460,7 +450,7 @@ const Checkout = () => {
                 </>
               ) : (
                 <p className="text-sm text-red-600">
-                  Could not load seller payment details.
+                  Could not load admin payment details.
                 </p>
               )}
             </div>
@@ -472,7 +462,7 @@ const Checkout = () => {
                   Payment Method *
                 </label>
                 
-                {seller?.bankAccounts && seller.bankAccounts.length > 0 && (
+                {admin?.bankAccounts && admin.bankAccounts.length > 0 && (
                   <div className="mb-2">
                     <select
                       name="paidToBankAccount"
@@ -481,7 +471,7 @@ const Checkout = () => {
                       className="w-full p-2 border border-gray-300 rounded-md"
                     >
                       <option value="">Select Bank Account</option>
-                      {seller.bankAccounts.map((account, index) => (
+                      {admin.bankAccounts.map((account, index) => (
                         <option key={index} value={account.accountNumber}>
                           {(account.type === 'other' ? account.otherBankName : account.type)} - {account.accountTitle} ({account.accountNumber})
                         </option>
@@ -490,7 +480,7 @@ const Checkout = () => {
                   </div>
                 )}
                 
-                {seller?.wallets && seller.wallets.length > 0 && (
+                {admin?.wallets && admin.wallets.length > 0 && (
                   <div>
                     <select
                       name="paidToWallet"
@@ -499,7 +489,7 @@ const Checkout = () => {
                       className="w-full p-2 border border-gray-300 rounded-md"
                     >
                       <option value="">Select Wallet</option>
-                      {seller.wallets.map((wallet, index) => (
+                      {admin.wallets.map((wallet, index) => (
                         <option key={index} value={wallet.accountNumber}>
                           {(wallet.type === 'other' ? wallet.otherWalletName : wallet.type)} - {wallet.accountTitle} ({wallet.accountNumber})
                         </option>
@@ -508,12 +498,12 @@ const Checkout = () => {
                   </div>
                 )}
 
-                {(!seller?.bankAccounts || seller.bankAccounts.length === 0) && 
-                 (!seller?.wallets || seller.wallets.length === 0) && (
+                {(!admin?.bankAccounts || admin.bankAccounts.length === 0) && 
+                 (!admin?.wallets || admin.wallets.length === 0) && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                     <p className="text-sm text-yellow-800">
-                      <strong>Note:</strong> No payment methods are available for this seller. 
-                      The seller needs to add payment methods to their profile before you can complete your purchase.
+                      <strong>Note:</strong> No payment methods are available for SportWearXpress. 
+                      SportWearXpress needs to add payment methods to their profile before you can complete your purchase.
                     </p>
                   </div>
                 )}
@@ -682,7 +672,7 @@ const Checkout = () => {
 
               <button
                 type="submit"
-                disabled={submitting || sellerLoading}
+                disabled={submitting || adminLoading}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? "Placing Order..." : "Place Order"}

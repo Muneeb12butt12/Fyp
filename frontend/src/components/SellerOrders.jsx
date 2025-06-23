@@ -258,7 +258,7 @@ const SellerOrders = () => {
                         Order #{order.orderNumber}
                       </h3>
                       <p className="text-sm text-gray-500">
-                        Buyer: {order.buyer.name} • {formatDate(order.createdAt)}
+                        Buyer: {order.buyer.fullName} • {formatDate(order.createdAt)}
                       </p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>

@@ -53,6 +53,11 @@ app.use("/api/products", productRoutes);
 app.use("/api/seller", sellerRoutes);
 app.use("/api/admin", adminRoutes);
 
+// Test route
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Backend server is working!" });
+});
+
 // Error Handling
 app.use(notFound);
 app.use(errorHandler);

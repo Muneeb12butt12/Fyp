@@ -151,14 +151,16 @@ export const CartProvider = ({ children }) => {
       return { isValid: false, error: "Some items are missing seller information" };
     }
 
-    // Check if all items are from the same seller
-    const firstItemSellerId = cart[0].sellerId;
-    const allSameSeller = cart.every(item => item.sellerId === firstItemSellerId);
-    if (!allSameSeller) {
-      return { isValid: false, error: "All items must be from the same seller" };
-    }
+    // Group items by seller
+    const itemsBySeller = {};
+    cart.forEach(item => {
+      if (!itemsBySeller[item.sellerId]) {
+        itemsBySeller[item.sellerId] = [];
+      }
+      itemsBySeller[item.sellerId].push(item);
+    });
 
-    // Validate item data
+    // Validate item data for all items
     for (const item of cart) {
       if (!item._id || !item.quantity || !item.price) {
         return { isValid: false, error: "Invalid item data in cart" };
@@ -173,7 +175,8 @@ export const CartProvider = ({ children }) => {
 
     return { 
       isValid: true, 
-      sellerId: firstItemSellerId,
+      itemsBySeller,
+      sellerCount: Object.keys(itemsBySeller).length,
       itemCount: cart.length,
       total: getCartTotal()
     };

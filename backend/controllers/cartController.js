@@ -5,14 +5,31 @@ import Cart from "../models/Cart.js";
 const getCart = async (req, res) => {
   try {
     const cart = await Cart.findOne({ user: req.user._id })
-      .populate("items.product", "title images price")
+      .populate([
+        { path: "items.product", select: "title images price" },
+        {
+          path: "items.seller",
+          select: "fullName email businessInfo.businessName",
+        },
+      ])
       .lean();
 
     if (!cart) {
-      return res.status(200).json({ items: [], totalAmount: 0 });
+      return res.status(200).json({
+        items: [],
+        totalAmount: 0,
+        validation: { isValid: false, sellerCount: 0, sellerGroups: [] },
+      });
     }
 
-    res.status(200).json(cart);
+    // Add validation info
+    const tempCart = new Cart(cart);
+    const validation = tempCart.validateMultiSellerCart();
+
+    res.status(200).json({
+      ...cart,
+      validation,
+    });
   } catch (error) {
     res
       .status(500)
@@ -29,7 +46,7 @@ const addToCart = async (req, res) => {
       _id: productId,
       status: "approved",
       isActive: true,
-    });
+    }).populate("seller", "fullName email businessInfo.businessName");
 
     if (!product) {
       return res
@@ -45,6 +62,7 @@ const addToCart = async (req, res) => {
         items: [
           {
             product: productId,
+            seller: product.seller._id,
             quantity,
             color,
             size,
@@ -65,6 +83,7 @@ const addToCart = async (req, res) => {
       } else {
         cart.items.push({
           product: productId,
+          seller: product.seller._id,
           quantity,
           color,
           size,
@@ -74,9 +93,21 @@ const addToCart = async (req, res) => {
     }
 
     await cart.save();
-    await cart.populate("items.product", "title images price");
+    await cart.populate([
+      { path: "items.product", select: "title images price" },
+      {
+        path: "items.seller",
+        select: "fullName email businessInfo.businessName",
+      },
+    ]);
 
-    res.status(200).json(cart);
+    // Get cart validation info
+    const validation = cart.validateMultiSellerCart();
+
+    res.status(200).json({
+      ...cart.toObject(),
+      validation,
+    });
   } catch (error) {
     res
       .status(500)
@@ -108,9 +139,21 @@ const updateCartItem = async (req, res) => {
     }
 
     await cart.save();
-    await cart.populate("items.product", "title images price");
+    await cart.populate([
+      { path: "items.product", select: "title images price" },
+      {
+        path: "items.seller",
+        select: "fullName email businessInfo.businessName",
+      },
+    ]);
 
-    res.status(200).json(cart);
+    // Get cart validation info
+    const validation = cart.validateMultiSellerCart();
+
+    res.status(200).json({
+      ...cart.toObject(),
+      validation,
+    });
   } catch (error) {
     res
       .status(500)
@@ -130,9 +173,21 @@ const removeFromCart = async (req, res) => {
 
     cart.items = cart.items.filter((item) => item._id.toString() !== itemId);
     await cart.save();
-    await cart.populate("items.product", "title images price");
+    await cart.populate([
+      { path: "items.product", select: "title images price" },
+      {
+        path: "items.seller",
+        select: "fullName email businessInfo.businessName",
+      },
+    ]);
 
-    res.status(200).json(cart);
+    // Get cart validation info
+    const validation = cart.validateMultiSellerCart();
+
+    res.status(200).json({
+      ...cart.toObject(),
+      validation,
+    });
   } catch (error) {
     res
       .status(500)
@@ -162,137 +217,186 @@ const clearCart = async (req, res) => {
 // Validate cart for checkout
 const validateCartForCheckout = async (req, res) => {
   try {
-    const { items, sellerId } = req.body;
     const buyerId = req.user._id;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: "Cart items are required" });
+    const cart = await Cart.findOne({ user: buyerId }).populate([
+      { path: "items.product", select: "title images price seller" },
+      {
+        path: "items.seller",
+        select: "fullName email businessInfo.businessName",
+      },
+    ]);
+
+    if (!cart || cart.items.length === 0) {
+      return res.status(400).json({ message: "Cart is empty" });
     }
 
-    if (!sellerId) {
-      return res.status(400).json({ message: "Seller ID is required" });
+    // Get cart validation info
+    const validation = cart.validateMultiSellerCart();
+
+    if (!validation.isValid) {
+      return res.status(400).json({ message: "Cart is invalid" });
     }
 
     // Validate each item in cart
     const validatedItems = [];
-    let subtotal = 0;
+    let totalSubtotal = 0;
 
-    for (const item of items) {
+    for (const item of cart.items) {
       if (!item.product || !item.quantity || !item.price) {
-        return res
-          .status(400)
-          .json({
-            message: "Each item must have product, quantity, and price",
-          });
+        return res.status(400).json({
+          message: "Each item must have product, quantity, and price",
+        });
       }
 
-      // Check if product exists and belongs to the seller
+      // Check if product exists and is active
       const product = await Product.findOne({
-        _id: item.product,
-        seller: sellerId,
+        _id: item.product._id,
+        status: "approved",
         isActive: true,
       });
 
       if (!product) {
-        return res
-          .status(400)
-          .json({
-            message: `Product ${item.name || item.product} is not available`,
-          });
+        return res.status(400).json({
+          message: `Product ${item.product.title} is not available`,
+        });
       }
 
-      // Validate quantity
-      if (item.quantity < 1) {
-        return res
-          .status(400)
-          .json({ message: "Item quantity must be at least 1" });
-      }
-
-      // Check stock availability
-      if (product.stock < item.quantity) {
-        return res
-          .status(400)
-          .json({ message: `Insufficient stock for ${product.name}` });
-      }
-
-      // Validate price
-      if (Math.abs(product.price - item.price) > 0.01) {
-        return res
-          .status(400)
-          .json({ message: `Price mismatch for ${product.name}` });
+      // Check if product belongs to the seller
+      if (product.seller.toString() !== item.seller._id.toString()) {
+        return res.status(400).json({
+          message: `Product ${item.product.title} seller mismatch`,
+        });
       }
 
       validatedItems.push({
-        product: product._id,
+        product: item.product._id,
+        seller: item.seller._id,
         quantity: item.quantity,
-        price: product.price,
-        name: product.name,
-        images: product.images,
-        variant: item.variant || {},
+        color: item.color,
+        size: item.size,
+        price: item.price,
       });
 
-      subtotal += product.price * item.quantity;
+      totalSubtotal += item.price * item.quantity;
     }
 
-    const shippingCost = 10;
-    const totalAmount = subtotal + shippingCost;
+    // Group items by seller for order creation
+    const itemsBySeller = {};
+    validatedItems.forEach((item) => {
+      const sellerId = item.seller.toString();
+      if (!itemsBySeller[sellerId]) {
+        itemsBySeller[sellerId] = [];
+      }
+      itemsBySeller[sellerId].push(item);
+    });
 
-    return res.status(200).json({
+    // Convert to array format for order creation
+    const cartItems = Object.keys(itemsBySeller).map((sellerId) => ({
+      sellerId,
+      items: itemsBySeller[sellerId],
+    }));
+
+    // Calculate totals for each seller
+    const sellerTotals = cartItems.map((sellerGroup) => {
+      const subtotal = sellerGroup.items.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+      const shippingCost = 10; // Fixed shipping cost per seller
+      const tax = subtotal * 0.05; // 5% tax
+      const total = subtotal + shippingCost + tax;
+
+      return {
+        ...sellerGroup,
+        subtotal,
+        shippingCost,
+        tax,
+        total,
+      };
+    });
+
+    const totalShipping = sellerTotals.reduce(
+      (sum, seller) => sum + seller.shippingCost,
+      0
+    );
+    const totalTax = sellerTotals.reduce((sum, seller) => sum + seller.tax, 0);
+    const grandTotal = totalSubtotal + totalShipping + totalTax;
+
+    res.status(200).json({
       success: true,
       message: "Cart validated successfully",
       data: {
-        validatedItems,
-        subtotal,
-        shippingCost,
-        totalAmount,
-        itemCount: items.length,
+        cartItems: sellerTotals,
+        totalSubtotal,
+        totalShipping,
+        totalTax,
+        grandTotal,
+        sellerCount: validation.sellerCount,
+        sellerGroups: validation.sellerGroups,
+        canProceed: true, // Always true now since we support multiple sellers
       },
     });
   } catch (error) {
     console.error("Error validating cart:", error);
-    return res
+    res
       .status(500)
-      .json({ message: "Internal server error", error: error.message });
+      .json({ message: "Error validating cart", error: error.message });
   }
 };
 
 // Get cart summary
 const getCartSummary = async (req, res) => {
   try {
-    const { items } = req.body;
+    const cart = await Cart.findOne({ user: req.user._id })
+      .populate([
+        { path: "items.product", select: "title images price" },
+        {
+          path: "items.seller",
+          select: "fullName email businessInfo.businessName",
+        },
+      ])
+      .lean();
 
-    if (!items || !Array.isArray(items)) {
-      return res.status(400).json({ message: "Items array is required" });
+    if (!cart || cart.items.length === 0) {
+      return res.status(200).json({
+        itemCount: 0,
+        totalAmount: 0,
+        sellerCount: 0,
+        sellerGroups: [],
+      });
     }
 
-    let subtotal = 0;
-    let itemCount = 0;
+    // Create temporary cart instance for validation
+    const tempCart = new Cart(cart);
+    const validation = tempCart.validateMultiSellerCart();
 
-    for (const item of items) {
-      if (item.price && item.quantity) {
-        subtotal += item.price * item.quantity;
-        itemCount += item.quantity;
-      }
-    }
+    // Group items by seller
+    const sellerGroups = tempCart.getItemsBySeller();
+    const sellerSummaries = Object.keys(sellerGroups).map((sellerId) => {
+      const items = sellerGroups[sellerId];
+      const seller = items[0].seller; // All items have same seller
+      return {
+        sellerId,
+        sellerName: seller.businessInfo?.businessName || seller.fullName,
+        itemCount: items.length,
+        subtotal: items.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        ),
+      };
+    });
 
-    const shippingCost = 10;
-    const totalAmount = subtotal + shippingCost;
-
-    return res.status(200).json({
-      success: true,
-      message: "Cart summary calculated successfully",
-      data: {
-        subtotal,
-        shippingCost,
-        totalAmount,
-        itemCount,
-      },
+    res.status(200).json({
+      itemCount: cart.items.length,
+      totalAmount: cart.totalAmount,
+      sellerCount: validation.sellerCount,
+      sellerGroups: sellerSummaries,
     });
   } catch (error) {
-    console.error("Error calculating cart summary:", error);
-    return res
+    res
       .status(500)
-      .json({ message: "Internal server error", error: error.message });
+      .json({ message: "Error fetching cart summary", error: error.message });
   }
 };
 

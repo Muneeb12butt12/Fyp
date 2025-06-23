@@ -15,6 +15,8 @@ import buyerRoutes from "./routes/buyerRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
+import payoutRoutes from "./routes/payoutRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -50,6 +52,16 @@ app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/cart", cartRoutes);
 app.use("/api/v1/payment", paymentRoutes);
+app.use("/api/v1/order", orderRoutes);
+app.use("/api/v1/payout", payoutRoutes);
+
+// 404 handler for undefined routes
+app.use("*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`,
+  });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {

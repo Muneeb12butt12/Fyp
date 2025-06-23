@@ -9,72 +9,175 @@ const orderSchema = new mongoose.Schema(
     },
     buyer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Buyer",
       required: true,
     },
-    seller: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Seller",
-      required: true,
-    },
-    items: [
+    sellerOrders: [
       {
-        product: {
+        seller: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "Product",
+          ref: "Seller",
           required: true,
         },
-        quantity: {
-          type: Number,
-          required: true,
-          min: [1, "Quantity must be at least 1"],
-        },
-        price: {
-          type: Number,
-          required: true,
-          min: [0, "Price cannot be negative"],
-        },
-        variant: {
-          color: String,
-          size: String,
-        },
-        customization: {
-          enabled: {
-            type: Boolean,
-            default: false,
-          },
-          options: [
-            {
-              name: String,
-              type: String,
-              value: String,
+        items: [
+          {
+            product: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "Product",
+              required: true,
             },
-          ],
+            quantity: {
+              type: Number,
+              required: true,
+              min: [1, "Quantity must be at least 1"],
+            },
+            price: {
+              type: Number,
+              required: true,
+              min: [0, "Price cannot be negative"],
+            },
+            variant: {
+              color: String,
+              size: String,
+            },
+            customization: {
+              enabled: {
+                type: Boolean,
+                default: false,
+              },
+              options: [
+                {
+                  name: String,
+                  type: String,
+                  value: String,
+                },
+              ],
+            },
+            status: {
+              type: String,
+              enum: [
+                "pending",
+                "processing",
+                "shipped",
+                "delivered",
+                "cancelled",
+                "returned",
+              ],
+              default: "pending",
+            },
+            returnRequest: {
+              requested: {
+                type: Boolean,
+                default: false,
+              },
+              reason: String,
+              status: {
+                type: String,
+                enum: ["pending", "approved", "rejected", "completed"],
+                default: "pending",
+              },
+              date: Date,
+            },
+          },
+        ],
+        subtotal: {
+          type: Number,
+          required: true,
+          min: [0, "Subtotal cannot be negative"],
+        },
+        shippingCost: {
+          type: Number,
+          default: 0,
+          min: [0, "Shipping cost cannot be negative"],
+        },
+        tax: {
+          type: Number,
+          default: 0,
+          min: [0, "Tax cannot be negative"],
+        },
+        totalAmount: {
+          type: Number,
+          required: true,
+          min: [0, "Total amount cannot be negative"],
         },
         status: {
           type: String,
           enum: [
             "pending",
+            "placed",
+            "confirmed",
             "processing",
             "shipped",
             "delivered",
             "cancelled",
+            "refunded",
+            "partially_refunded",
             "returned",
           ],
           default: "pending",
         },
-        returnRequest: {
-          requested: {
-            type: Boolean,
-            default: false,
+        shippingInfo: {
+          method: {
+            type: String,
+            enum: ["standard", "express", "overnight"],
+            default: "standard",
           },
-          reason: String,
           status: {
             type: String,
-            enum: ["pending", "approved", "rejected", "completed"],
+            enum: [
+              "pending",
+              "processing",
+              "shipped",
+              "delivered",
+              "cancelled",
+              "returned",
+            ],
             default: "pending",
           },
-          date: Date,
+          trackingNumber: String,
+          carrier: String,
+          estimatedDelivery: Date,
+          actualDelivery: Date,
+          deliveryAttempts: {
+            type: Number,
+            default: 0,
+          },
+          deliveryNotes: String,
+          returnShipping: {
+            trackingNumber: String,
+            carrier: String,
+            status: {
+              type: String,
+              enum: ["pending", "in_transit", "delivered"],
+              default: "pending",
+            },
+            date: Date,
+          },
+        },
+        timeline: [
+          {
+            status: {
+              type: String,
+              required: true,
+            },
+            date: {
+              type: Date,
+              default: Date.now,
+            },
+            note: String,
+            updatedBy: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+            },
+          },
+        ],
+        paymentId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Payment",
+        },
+        payoutId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Payout",
         },
       },
     ],
@@ -190,49 +293,6 @@ const orderSchema = new mongoose.Schema(
         },
       ],
     },
-    shippingInfo: {
-      method: {
-        type: String,
-        enum: ["standard", "express", "overnight"],
-        default: "standard",
-      },
-      cost: {
-        type: Number,
-        default: 0,
-        min: [0, "Shipping cost cannot be negative"],
-      },
-      status: {
-        type: String,
-        enum: [
-          "pending",
-          "processing",
-          "shipped",
-          "delivered",
-          "cancelled",
-          "returned",
-        ],
-        default: "pending",
-      },
-      trackingNumber: String,
-      carrier: String,
-      estimatedDelivery: Date,
-      actualDelivery: Date,
-      deliveryAttempts: {
-        type: Number,
-        default: 0,
-      },
-      deliveryNotes: String,
-      returnShipping: {
-        trackingNumber: String,
-        carrier: String,
-        status: {
-          type: String,
-          enum: ["pending", "in_transit", "delivered"],
-          default: "pending",
-        },
-        date: Date,
-      },
-    },
     status: {
       type: String,
       enum: [
@@ -317,7 +377,7 @@ const orderSchema = new mongoose.Schema(
         type: {
           type: String,
           enum: ["email", "sms", "push"],
-          required: true,
+          required: false,
         },
         status: {
           type: String,
@@ -351,10 +411,6 @@ const orderSchema = new mongoose.Schema(
       browser: String,
       ipAddress: String,
     },
-    paymentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Payment",
-    },
   },
   {
     timestamps: true,
@@ -387,16 +443,90 @@ orderSchema.pre("save", function (next) {
   next();
 });
 
+// Update buyer and seller orders arrays when order is created
+orderSchema.post("save", async function (doc) {
+  try {
+    const Buyer = mongoose.model("Buyer");
+    const Seller = mongoose.model("Seller");
+    const Admin = mongoose.model("Admin");
+
+    // Add order to buyer's orders array if not already present
+    await Buyer.findByIdAndUpdate(doc.buyer, {
+      $addToSet: { orders: doc._id },
+    });
+
+    // Add order to each seller's orders array
+    for (const sellerOrder of doc.sellerOrders) {
+      const admin = await Admin.findById(sellerOrder.seller);
+      if (admin) {
+        // Add order to admin's orders array if not already present
+        await Admin.findByIdAndUpdate(sellerOrder.seller, {
+          $addToSet: { orders: doc._id },
+        });
+      } else {
+        // Add order to seller's orders array if not already present
+        await Seller.findByIdAndUpdate(sellerOrder.seller, {
+          $addToSet: { orders: doc._id },
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error updating buyer/seller orders arrays:", error);
+  }
+});
+
+// Remove order from buyer and seller orders arrays when order is deleted
+orderSchema.post("remove", async function (doc) {
+  try {
+    const Buyer = mongoose.model("Buyer");
+    const Seller = mongoose.model("Seller");
+    const Admin = mongoose.model("Admin");
+
+    // Remove order from buyer's orders array
+    await Buyer.findByIdAndUpdate(doc.buyer, { $pull: { orders: doc._id } });
+
+    // Remove order from each seller's orders array
+    for (const sellerOrder of doc.sellerOrders) {
+      const admin = await Admin.findById(sellerOrder.seller);
+      if (admin) {
+        await Admin.findByIdAndUpdate(sellerOrder.seller, {
+          $pull: { orders: doc._id },
+        });
+      } else {
+        await Seller.findByIdAndUpdate(sellerOrder.seller, {
+          $pull: { orders: doc._id },
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error removing order from buyer/seller arrays:", error);
+  }
+});
+
 // Method to calculate total amount
 orderSchema.methods.calculateTotal = function () {
-  const subtotal = this.items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+  // Calculate subtotal from all seller orders
+  const subtotal = this.sellerOrders.reduce(
+    (sum, sellerOrder) => sum + sellerOrder.subtotal,
     0
   );
   this.subtotal = subtotal;
-  this.totalAmount =
-    subtotal + this.shippingInfo.cost + this.tax - this.discount;
+  this.totalAmount = subtotal + this.tax - this.discount;
   return this.totalAmount;
+};
+
+// Method to calculate seller order totals
+orderSchema.methods.calculateSellerOrderTotals = function () {
+  this.sellerOrders.forEach((sellerOrder) => {
+    const itemSubtotal = sellerOrder.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    sellerOrder.subtotal = itemSubtotal;
+    sellerOrder.totalAmount =
+      itemSubtotal + sellerOrder.shippingCost + sellerOrder.tax;
+  });
+  return this.sellerOrders;
 };
 
 // Method to update order status
@@ -413,6 +543,42 @@ orderSchema.methods.updateStatus = async function (
     updatedBy,
   });
   return this.save();
+};
+
+// Method to update seller order status
+orderSchema.methods.updateSellerOrderStatus = async function (
+  sellerOrderIndex,
+  newStatus,
+  note = "",
+  updatedBy = null
+) {
+  if (this.sellerOrders[sellerOrderIndex]) {
+    this.sellerOrders[sellerOrderIndex].status = newStatus;
+    this.sellerOrders[sellerOrderIndex].timeline.push({
+      status: newStatus,
+      date: new Date(),
+      note,
+      updatedBy,
+    });
+    return this.save();
+  }
+  throw new Error("Seller order not found");
+};
+
+// Method to update item status within a seller order
+orderSchema.methods.updateItemStatus = async function (
+  sellerOrderIndex,
+  itemIndex,
+  newStatus
+) {
+  if (
+    this.sellerOrders[sellerOrderIndex] &&
+    this.sellerOrders[sellerOrderIndex].items[itemIndex]
+  ) {
+    this.sellerOrders[sellerOrderIndex].items[itemIndex].status = newStatus;
+    return this.save();
+  }
+  throw new Error("Item not found in seller order");
 };
 
 // Method to process refund
@@ -434,23 +600,29 @@ orderSchema.methods.processRefund = async function (
   return this.save();
 };
 
-// Method to update shipping status
-orderSchema.methods.updateShippingStatus = async function (
+// Method to update shipping status for a specific seller order
+orderSchema.methods.updateSellerOrderShippingStatus = async function (
+  sellerOrderIndex,
   newStatus,
   trackingNumber = null,
   carrier = null
 ) {
-  this.shippingInfo.status = newStatus;
-  if (trackingNumber) {
-    this.shippingInfo.trackingNumber = trackingNumber;
+  if (this.sellerOrders[sellerOrderIndex]) {
+    this.sellerOrders[sellerOrderIndex].shippingInfo.status = newStatus;
+    if (trackingNumber) {
+      this.sellerOrders[sellerOrderIndex].shippingInfo.trackingNumber =
+        trackingNumber;
+    }
+    if (carrier) {
+      this.sellerOrders[sellerOrderIndex].shippingInfo.carrier = carrier;
+    }
+    if (newStatus === "delivered") {
+      this.sellerOrders[sellerOrderIndex].shippingInfo.actualDelivery =
+        new Date();
+    }
+    return this.save();
   }
-  if (carrier) {
-    this.shippingInfo.carrier = carrier;
-  }
-  if (newStatus === "delivered") {
-    this.shippingInfo.actualDelivery = new Date();
-  }
-  return this.save();
+  throw new Error("Seller order not found");
 };
 
 // Method to add notification
@@ -475,9 +647,16 @@ orderSchema.methods.addReview = async function (rating, comment, images = []) {
 };
 
 // Method to request return for an item
-orderSchema.methods.requestItemReturn = async function (itemIndex, reason) {
-  if (this.items[itemIndex]) {
-    this.items[itemIndex].returnRequest = {
+orderSchema.methods.requestItemReturn = async function (
+  sellerOrderIndex,
+  itemIndex,
+  reason
+) {
+  if (
+    this.sellerOrders[sellerOrderIndex] &&
+    this.sellerOrders[sellerOrderIndex].items[itemIndex]
+  ) {
+    this.sellerOrders[sellerOrderIndex].items[itemIndex].returnRequest = {
       requested: true,
       reason,
       status: "pending",
@@ -486,6 +665,20 @@ orderSchema.methods.requestItemReturn = async function (itemIndex, reason) {
     return this.save();
   }
   throw new Error("Item not found in order");
+};
+
+// Method to get seller-specific order data
+orderSchema.methods.getSellerOrderData = function (sellerId) {
+  return this.sellerOrders.find(
+    (sellerOrder) => sellerOrder.seller.toString() === sellerId.toString()
+  );
+};
+
+// Method to check if all seller orders are delivered
+orderSchema.methods.areAllSellerOrdersDelivered = function () {
+  return this.sellerOrders.every(
+    (sellerOrder) => sellerOrder.status === "delivered"
+  );
 };
 
 // Static method to find orders by date range
@@ -510,7 +703,7 @@ orderSchema.statics.findByBuyer = function (buyerId) {
 
 // Static method to find orders by seller
 orderSchema.statics.findBySeller = function (sellerId) {
-  return this.find({ seller: sellerId });
+  return this.find({ "sellerOrders.seller": sellerId });
 };
 
 const Order = mongoose.model("Order", orderSchema);

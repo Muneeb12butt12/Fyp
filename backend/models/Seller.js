@@ -169,6 +169,12 @@ const sellerSchema = new mongoose.Schema(
         ref: "Product",
       },
     ],
+    orders: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Order",
+      },
+    ],
     createdAt: {
       type: Date,
       default: Date.now,
@@ -181,6 +187,84 @@ const sellerSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Balance and financial tracking
+    balance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    totalEarnings: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    totalWithdrawals: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    pendingBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Payout and withdrawal history
+    payoutHistory: [
+      {
+        payoutId: {
+          type: String,
+          required: true,
+        },
+        amount: {
+          type: Number,
+          required: true,
+        },
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+        orderId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Order",
+        },
+        status: {
+          type: String,
+          enum: ["credited_to_balance", "withdrawn"],
+          default: "credited_to_balance",
+        },
+      },
+    ],
+    withdrawalHistory: [
+      {
+        withdrawalId: {
+          type: String,
+          required: true,
+        },
+        amount: {
+          type: Number,
+          required: true,
+        },
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+        status: {
+          type: String,
+          enum: ["pending", "completed", "failed", "cancelled"],
+          default: "pending",
+        },
+        destination: {
+          type: {
+            type: String,
+            enum: ["bank_account", "wallet"],
+          },
+          accountNumber: String,
+          accountTitle: String,
+          bankName: String,
+          walletType: String,
+        },
+      },
+    ],
   },
   {
     timestamps: true,

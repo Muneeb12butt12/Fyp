@@ -81,6 +81,23 @@ const AdminDashboard = () => {
     notes: ''
   });
 
+  // User management state
+  const [realBuyers, setRealBuyers] = useState([]);
+  const [realSellers, setRealSellers] = useState([]);
+  const [userManagementLoading, setUserManagementLoading] = useState(false);
+  const [userPagination, setUserPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalUsers: 0,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
+  const [userFilters, setUserFilters] = useState({
+    search: '',
+    status: 'all',
+    verification: 'all'
+  });
+
   // Mock data for buyers and sellers
   const [buyers, setBuyers] = useState([
     {
@@ -381,6 +398,145 @@ const AdminDashboard = () => {
     navigate('/signin');
   };
 
+  // User management functions
+  const fetchBuyers = async (page = 1, filters = {}) => {
+    setUserManagementLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+        search: filters.search || '',
+        status: filters.status || 'all'
+      });
+
+      const response = await axios.get(`${API_URL}/api/admin/buyers?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setRealBuyers(response.data.data.buyers);
+        setUserPagination(response.data.data.pagination);
+      }
+    } catch (error) {
+      console.error('Error fetching buyers:', error);
+      toast.error('Failed to fetch buyers');
+    } finally {
+      setUserManagementLoading(false);
+    }
+  };
+
+  const fetchSellers = async (page = 1, filters = {}) => {
+    setUserManagementLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+        search: filters.search || '',
+        status: filters.status || 'all',
+        verification: filters.verification || 'all'
+      });
+
+      const response = await axios.get(`${API_URL}/api/admin/sellers?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setRealSellers(response.data.data.sellers);
+        setUserPagination(response.data.data.pagination);
+      }
+    } catch (error) {
+      console.error('Error fetching sellers:', error);
+      toast.error('Failed to fetch sellers');
+    } finally {
+      setUserManagementLoading(false);
+    }
+  };
+
+  const handleUserFilterChange = (filterType, value) => {
+    const newFilters = { ...userFilters, [filterType]: value };
+    setUserFilters(newFilters);
+    setUserPagination(prev => ({ ...prev, currentPage: 1 }));
+    
+    if (activeUserType === 'buyers') {
+      fetchBuyers(1, newFilters);
+    } else {
+      fetchSellers(1, newFilters);
+    }
+  };
+
+  const handleUserPageChange = (newPage) => {
+    setUserPagination(prev => ({ ...prev, currentPage: newPage }));
+    
+    if (activeUserType === 'buyers') {
+      fetchBuyers(newPage, userFilters);
+    } else {
+      fetchSellers(newPage, userFilters);
+    }
+  };
+
+  const handleToggleUserStatus = async (userId, action, userType) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (userType === 'buyer') {
+        await axios.post(`${API_URL}/api/admin/users/${userId}/toggle-status`, {
+          action,
+          reason: 'Admin action',
+          suspendedUntil: action === 'suspend' ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : null
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        // Refresh buyers list
+        fetchBuyers(userPagination.currentPage, userFilters);
+      } else {
+        // For sellers
+        if (action === 'verify') {
+          // Use the verify seller endpoint
+          await axios.post(`${API_URL}/api/admin/sellers/${userId}/verify`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          toast.success('Seller verified successfully');
+        } else if (action === 'suspend') {
+          // Use the existing suspend endpoint
+          await axios.post(`${API_URL}/api/admin/sellers/${userId}/suspend`, {
+            reason: 'Admin suspension',
+            suspendedUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            notes: 'Admin action'
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          toast.success('Seller suspended successfully');
+        } else if (action === 'activate') {
+          // For activating suspended sellers, use the new activate endpoint
+          await axios.post(`${API_URL}/api/admin/sellers/${userId}/activate`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          toast.success('Seller activated successfully');
+        }
+        
+        // Refresh sellers list
+        fetchSellers(userPagination.currentPage, userFilters);
+      }
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      toast.error('Failed to update user status');
+    }
+  };
+
+  // Fetch user data when tab changes
+  useEffect(() => {
+    if (activeTab === 'users' && !isCheckingAuth) {
+      if (activeUserType === 'buyers') {
+        fetchBuyers(1, userFilters);
+      } else {
+        fetchSellers(1, userFilters);
+      }
+    }
+  }, [activeTab, activeUserType, isCheckingAuth]);
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -524,22 +680,41 @@ const AdminDashboard = () => {
                     type="text"
                     placeholder={`Search ${activeUserType}...`}
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    value={userFilters.search}
+                    onChange={(e) => handleUserFilterChange('search', e.target.value)}
                   />
                 </div>
                 <div className="flex items-center space-x-4">
                   <select
                     className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
+                    value={userFilters.status}
+                    onChange={(e) => handleUserFilterChange('status', e.target.value)}
                   >
                     <option value="all">All Status</option>
                     <option value="active">Active</option>
                     <option value="suspended">Suspended</option>
                   </select>
+                  {activeUserType === 'sellers' && (
+                    <select
+                      className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      value={userFilters.verification}
+                      onChange={(e) => handleUserFilterChange('verification', e.target.value)}
+                    >
+                      <option value="all">All Verification</option>
+                      <option value="verified">Verified</option>
+                      <option value="unverified">Unverified</option>
+                    </select>
+                  )}
                 </div>
               </div>
+
+              {/* Loading State */}
+              {userManagementLoading && (
+                <div className="flex justify-center items-center py-8">
+                  <FaSpinner className="animate-spin h-6 w-6 text-primary" />
+                  <span className="ml-2 text-gray-600">Loading {activeUserType}...</span>
+                </div>
+              )}
 
               {/* Users Table */}
               <div className="overflow-x-auto">
@@ -559,14 +734,14 @@ const AdminDashboard = () => {
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
+                        Details
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {activeUserType === 'buyers' ? (
                       // Buyers List
-                      buyers.map((buyer) => (
+                      realBuyers.map((buyer) => (
                         <tr 
                           key={buyer.id} 
                           onClick={() => handleRowClick(buyer)}
@@ -577,12 +752,13 @@ const AdminDashboard = () => {
                               <div className="flex-shrink-0 h-10 w-10">
                                 <img
                                   className="h-10 w-10 rounded-full"
-                                  src={buyer.avatar || 'https://via.placeholder.com/40'}
+                                  src={buyer.profilePhoto || 'https://via.placeholder.com/40'}
                                   alt=""
                                 />
                               </div>
                               <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{buyer.name}</div>
+                                <div className="text-sm font-medium text-gray-900">{buyer.fullName}</div>
+                                <div className="text-sm text-gray-500">{buyer.phoneNumber}</div>
                               </div>
                             </div>
                           </td>
@@ -590,7 +766,7 @@ const AdminDashboard = () => {
                             <div className="text-sm text-gray-900">{buyer.email}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{buyer.joinedDate}</div>
+                            <div className="text-sm text-gray-900">{new Date(buyer.joinedDate).toLocaleDateString()}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -601,25 +777,29 @@ const AdminDashboard = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
-                              onClick={() => handleViewDetails(buyer.id)}
-                              className="text-primary hover:text-primary-dark mr-4"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleUserStatus(buyer.id, 'suspend', 'buyer');
+                              }}
+                              className="text-red-600 hover:text-red-900 mr-4"
                             >
-                              View Details
+                              Suspend
                             </button>
                             <button
-                              onClick={() => handleToggleStatus(buyer.id)}
-                              className={`${
-                                buyer.status === 'active' ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'
-                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleUserStatus(buyer.id, 'activate', 'buyer');
+                              }}
+                              className="text-green-600 hover:text-green-900"
                             >
-                              {buyer.status === 'active' ? 'Suspend' : 'Activate'}
+                              Activate
                             </button>
                           </td>
                         </tr>
                       ))
                     ) : (
                       // Sellers List
-                      sellers.map((seller) => (
+                      realSellers.map((seller) => (
                         <tr 
                           key={seller.id} 
                           onClick={() => handleRowClick(seller)}
@@ -630,13 +810,13 @@ const AdminDashboard = () => {
                               <div className="flex-shrink-0 h-10 w-10">
                                 <img
                                   className="h-10 w-10 rounded-full"
-                                  src={seller.avatar || 'https://via.placeholder.com/40'}
+                                  src={seller.profilePhoto || 'https://via.placeholder.com/40'}
                                   alt=""
                                 />
                               </div>
                               <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{seller.name}</div>
-                                <div className="text-sm text-gray-500">{seller.storeName}</div>
+                                <div className="text-sm font-medium text-gray-900">{seller.fullName}</div>
+                                <div className="text-sm text-gray-500">{seller.businessName}</div>
                               </div>
                             </div>
                           </td>
@@ -644,29 +824,40 @@ const AdminDashboard = () => {
                             <div className="text-sm text-gray-900">{seller.email}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{seller.joinedDate}</div>
+                            <div className="text-sm text-gray-900">{new Date(seller.joinedDate).toLocaleDateString()}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-col space-y-1">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                               seller.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                             }`}>
                               {seller.status}
                             </span>
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                seller.isVerified ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {seller.isVerified ? 'Verified' : 'Unverified'}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
-                              onClick={() => handleViewDetails(seller.id)}
-                              className="text-primary hover:text-primary-dark mr-4"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/admin/seller-approval/${seller.id}`);
+                              }}
+                              className="text-blue-600 hover:text-blue-900 font-medium mr-3"
                             >
                               View Details
                             </button>
                             <button
-                              onClick={() => handleToggleStatus(seller.id)}
-                              className={`${
-                                seller.status === 'active' ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'
-                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/admin/suspension?sellerId=${seller.id}&sellerName=${encodeURIComponent(seller.fullName)}`);
+                              }}
+                              className="text-red-600 hover:text-red-900 font-medium"
                             >
-                              {seller.status === 'active' ? 'Suspend' : 'Activate'}
+                              Suspend
                             </button>
                           </td>
                         </tr>
@@ -679,19 +870,25 @@ const AdminDashboard = () => {
               {/* Pagination */}
               <div className="mt-4 flex items-center justify-between">
                 <div className="text-sm text-gray-700">
-                  Showing <span className="font-medium">1</span> to <span className="font-medium">10</span> of{' '}
-                  <span className="font-medium">{activeUserType === 'buyers' ? buyers.length : sellers.length}</span> results
+                  Showing <span className="font-medium">{((userPagination.currentPage - 1) * 10) + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(userPagination.currentPage * 10, userPagination.totalUsers)}</span> of{' '}
+                  <span className="font-medium">{userPagination.totalUsers}</span> results
                 </div>
                 <div className="flex space-x-2">
                   <button
-                    className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    disabled={currentPage === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!userPagination.hasPrevPage}
+                    onClick={() => handleUserPageChange(userPagination.currentPage - 1)}
                   >
                     Previous
                   </button>
+                  <span className="px-3 py-1 text-sm text-gray-700">
+                    Page {userPagination.currentPage} of {userPagination.totalPages}
+                  </span>
                   <button
-                    className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!userPagination.hasNextPage}
+                    onClick={() => handleUserPageChange(userPagination.currentPage + 1)}
                   >
                     Next
                   </button>
@@ -810,39 +1007,48 @@ const AdminDashboard = () => {
                                 <img src={seller.profilePhoto || 'https://via.placeholder.com/40'} alt={seller.fullName} className="h-10 w-10 rounded-full" />
                                 <div className="ml-4">
                                   <div className="text-sm font-medium text-gray-900">{seller.fullName}</div>
-                                  <div className="text-sm text-gray-500">{seller.email}</div>
+                                  <div className="text-sm text-gray-500">{seller.businessName}</div>
                                 </div>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{seller.businessInfo.businessName}</div>
+                              <div className="text-sm text-gray-900">{seller.email}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{seller.businessInfo.businessType}</div>
+                              <div className="text-sm text-gray-900">{new Date(seller.joinedDate).toLocaleDateString()}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                Pending
+                              <div className="flex flex-col space-y-1">
+                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  seller.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {seller.status}
                               </span>
+                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  seller.isVerified ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {seller.isVerified ? 'Verified' : 'Unverified'}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleSellerApproval(seller._id, 'approve');
+                                  navigate(`/admin/seller-approval/${seller.id}`);
                                 }}
-                                className="text-green-600 hover:text-green-900 mr-3"
+                                className="text-blue-600 hover:text-blue-900 font-medium mr-3"
                               >
-                                <FaCheck className="h-5 w-5" />
+                                View Details
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleSellerApproval(seller._id, 'reject');
+                                  navigate(`/admin/suspension?sellerId=${seller.id}&sellerName=${encodeURIComponent(seller.fullName)}`);
                                 }}
-                                className="text-red-600 hover:text-red-900"
+                                className="text-red-600 hover:text-red-900 font-medium"
                               >
-                                <FaTimes className="h-5 w-5" />
+                                Suspend
                               </button>
                             </td>
                           </tr>

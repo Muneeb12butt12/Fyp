@@ -16,7 +16,7 @@ const BuyerOrdersPage = () => {
 
   const fetchOrders = async () => {
     try {
-      const response = await axios.get("/api/v1/payment/buyer-orders", {
+      const response = await axios.get("/api/v1/order/buyer", {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
@@ -193,7 +193,7 @@ const BuyerOrdersPage = () => {
                   {/* Seller Information */}
                   <div>
                     <h4 className="font-medium text-gray-900 mb-2">Seller:</h4>
-                    <p className="text-sm text-gray-600">{order.seller.name}</p>
+                    <p className="text-sm text-gray-600">{order.seller.fullName}</p>
                   </div>
                 </div>
               ))}

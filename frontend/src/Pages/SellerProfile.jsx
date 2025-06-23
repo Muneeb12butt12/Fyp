@@ -26,12 +26,7 @@ const SellerProfile = () => {
     },
     bankAccounts: [],
     wallets: [],
-    status: '',
-    verificationStatus: {
-      email: false,
-      phone: false,
-      documents: false
-    },
+    isVerified: false,
     isSuspended: false
   });
 
@@ -78,12 +73,7 @@ const SellerProfile = () => {
           },
           bankAccounts: response.data.bankAccounts || [],
           wallets: response.data.wallets || [],
-          status: response.data.status || 'pending',
-          verificationStatus: {
-            email: response.data.verificationStatus?.email || false,
-            phone: response.data.verificationStatus?.phone || false,
-            documents: response.data.verificationStatus?.documents || false
-          },
+          isVerified: response.data.isVerified || false,
           isSuspended: response.data.isSuspended || false
         });
       }
@@ -103,12 +93,7 @@ const SellerProfile = () => {
           },
           bankAccounts: user.bankAccounts || [],
           wallets: user.wallets || [],
-          status: user.status || 'pending',
-          verificationStatus: {
-            email: user.verificationStatus?.email || false,
-            phone: user.verificationStatus?.phone || false,
-            documents: user.verificationStatus?.documents || false
-          },
+          isVerified: user.isVerified || false,
           isSuspended: user.isSuspended || false
         });
       }
@@ -419,7 +404,7 @@ const SellerProfile = () => {
                   <motion.div whileHover={{ scale: 1.02 }}>
                     <label className="block text-sm font-medium text-gray-700">Verification Status</label>
                     <div className="mt-1 flex items-center">
-                      {profile.verificationStatus.documents ? (
+                      {profile.isVerified ? (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                           <FaCheckCircle className="h-5 w-5 mr-2" />
                           Verified

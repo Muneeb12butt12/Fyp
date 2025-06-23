@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaUser, FaHistory, FaSignOutAlt, FaArrowLeft, FaEnvelope, FaPhone, FaCalendarAlt, FaClock } from 'react-icons/fa';
+import { FaUser, FaHistory, FaSignOutAlt, FaArrowLeft, FaEnvelope, FaPhone, FaCalendarAlt, FaClock, FaCreditCard, FaWallet, FaDollarSign, FaChartLine } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 
@@ -201,6 +201,196 @@ const AdminProfile = () => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Payment Methods Section */}
+            <div className="mt-8">
+              <div className="bg-gray-50 rounded-xl p-6">
+                <h2 className="text-xl font-semibold mb-6 flex items-center text-gray-800">
+                  <FaCreditCard className="mr-3 text-blue-500" />
+                  Payment Methods
+                </h2>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Bank Accounts */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
+                      <FaCreditCard className="mr-2 text-blue-500" />
+                      Bank Accounts ({adminData?.bankAccounts?.length || 0})
+                    </h3>
+                    {adminData?.bankAccounts && adminData.bankAccounts.length > 0 ? (
+                      <div className="space-y-3">
+                        {adminData.bankAccounts.map((account, index) => (
+                          <div key={index} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {account.type === 'other' ? account.otherBankName : account.type}
+                                </p>
+                                <p className="text-sm text-gray-600">Account: {account.accountNumber}</p>
+                                <p className="text-sm text-gray-600">Title: {account.accountTitle}</p>
+                                {account.branchCode && (
+                                  <p className="text-sm text-gray-600">Branch: {account.branchCode}</p>
+                                )}
+                              </div>
+                              {account.isDefault && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-medium">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                        <p className="text-gray-500 text-center">No bank accounts added</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Wallets */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
+                      <FaWallet className="mr-2 text-blue-500" />
+                      Wallets ({adminData?.wallets?.length || 0})
+                    </h3>
+                    {adminData?.wallets && adminData.wallets.length > 0 ? (
+                      <div className="space-y-3">
+                        {adminData.wallets.map((wallet, index) => (
+                          <div key={index} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-green-500">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {wallet.type === 'other' ? wallet.otherWalletName : wallet.type}
+                                </p>
+                                <p className="text-sm text-gray-600">Account: {wallet.accountNumber}</p>
+                                <p className="text-sm text-gray-600">Title: {wallet.accountTitle}</p>
+                              </div>
+                              {wallet.isDefault && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-medium">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                        <p className="text-gray-500 text-center">No wallets added</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Balance Information Section */}
+            <div className="mt-8">
+              <div className="bg-gray-50 rounded-xl p-6">
+                <h2 className="text-xl font-semibold mb-6 flex items-center text-gray-800">
+                  <FaDollarSign className="mr-3 text-blue-500" />
+                  Financial Overview
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Commission Balance */}
+                  <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-green-500">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Commission Balance</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          ${adminData?.commissionBalance?.toFixed(2) || '0.00'}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                        <FaDollarSign className="text-green-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Total Commissions */}
+                  <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-500">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Total Commissions</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          ${adminData?.totalCommissions?.toFixed(2) || '0.00'}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <FaChartLine className="text-blue-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Total Payouts */}
+                  <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-purple-500">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Total Payouts</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                          ${adminData?.totalPayouts?.toFixed(2) || '0.00'}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                        <FaWallet className="text-purple-500" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Commission History */}
+                {adminData?.commissionHistory && adminData.commissionHistory.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
+                      <FaHistory className="mr-2 text-blue-500" />
+                      Recent Commission History
+                    </h3>
+                    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Date
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Payout ID
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Order ID
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Amount
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {adminData.commissionHistory.slice(0, 5).map((commission, index) => (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {new Date(commission.date).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {commission.payoutId}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {commission.orderId}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+                                  ${commission.amount?.toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

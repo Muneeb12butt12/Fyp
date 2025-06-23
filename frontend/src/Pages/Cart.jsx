@@ -27,7 +27,7 @@ const Cart = () => {
         
         for (const item of itemsNeedingSellerNames) {
           try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/seller/${item.sellerId}/profile`);
+            const response = await fetch(`/api/seller/${item.sellerId}/profile`);
             if (response.ok) {
               const sellerData = await response.json();
               sellerNamesData[item.sellerId] = sellerData.businessInfo?.businessName || sellerData.fullName || 'Unknown Seller';
@@ -72,8 +72,8 @@ const Cart = () => {
       return;
     }
 
-    // Navigate to checkout with seller ID
-    navigate(`/checkout/${validation.sellerId}`);
+    // Navigate to checkout (no longer need specific sellerId for multi-seller support)
+    navigate("/checkout");
   };
 
   const calculateShipping = () => {

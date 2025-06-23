@@ -153,11 +153,36 @@ export const register = async (req, res) => {
       businessName,
       businessType,
       nationalID,
+      bankAccounts,
+      wallets,
     } = req.body;
 
     // Validate required fields
     if (!email || !password || !role || !fullName) {
       return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Admin-specific validation
+    if (role === "admin") {
+      // Check if admin already exists
+      const adminCount = await Admin.countDocuments();
+      if (adminCount > 0) {
+        return res.status(400).json({
+          message:
+            "Admin already exists. Only one admin is allowed in the system.",
+        });
+      }
+
+      // Validate that at least one payment method is provided for admin
+      if (
+        (!bankAccounts || bankAccounts.length === 0) &&
+        (!wallets || wallets.length === 0)
+      ) {
+        return res.status(400).json({
+          message:
+            "At least one payment method (bank account or wallet) is required",
+        });
+      }
     }
 
     // Seller-specific validation
@@ -185,7 +210,6 @@ export const register = async (req, res) => {
       }
 
       // Validate that at least one payment method is provided
-      const { bankAccounts, wallets } = req.body;
       if (
         (!bankAccounts || bankAccounts.length === 0) &&
         (!wallets || wallets.length === 0)
@@ -233,6 +257,12 @@ export const register = async (req, res) => {
       },
     };
 
+    // Add admin-specific fields if role is admin
+    if (role === "admin") {
+      userData.bankAccounts = bankAccounts || [];
+      userData.wallets = wallets || [];
+    }
+
     // Add seller-specific fields if role is seller
     if (role === "seller") {
       userData.businessInfo = {
@@ -240,8 +270,8 @@ export const register = async (req, res) => {
         businessType,
         nationalID,
       };
-      userData.bankAccounts = req.body.bankAccounts || [];
-      userData.wallets = req.body.wallets || [];
+      userData.bankAccounts = bankAccounts || [];
+      userData.wallets = wallets || [];
       userData.status = "pending";
       userData.verificationStatus = {
         email: false,

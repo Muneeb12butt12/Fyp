@@ -32,7 +32,7 @@ const CategoryProducts = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/products`);
+      const response = await axios.get(`/api/products`);
       if (response.data && Array.isArray(response.data)) {
         // Filter for approved and isActive products only
         const filtered = response.data.filter(

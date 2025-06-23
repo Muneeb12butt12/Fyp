@@ -224,9 +224,12 @@ const SignUp = () => {
       if (!formData.nationalID) {
         newErrors.nationalID = 'National ID is required';
       }
-      if (formData.bankAccounts.length === 0 && formData.wallets.length === 0) {
+    }
+
+    // Require payment methods for both seller and admin
+    if ((formData.role === 'seller' || formData.role === 'admin') && 
+        formData.bankAccounts.length === 0 && formData.wallets.length === 0) {
         newErrors.paymentMethods = 'At least one payment method (bank account or wallet) is required';
-      }
     }
 
     setErrors(newErrors);
@@ -285,6 +288,32 @@ const SignUp = () => {
             isDefault: false,
             otherWalletName: wallet.type === 'other' ? wallet.otherWalletName : undefined
           }))
+        });
+      }
+
+      // Add bank information for admin registration
+      if (formData.role === 'admin') {
+        Object.assign(registrationData, {
+          bankAccounts: formData.bankAccounts.map(account => ({
+            type: account.type,
+            accountNumber: account.accountNumber,
+            accountTitle: account.accountTitle,
+            branchCode: account.branchCode || '',
+            isDefault: false,
+            otherBankName: account.type === 'other' ? account.otherBankName : undefined
+          })),
+          wallets: formData.wallets.map(wallet => ({
+            type: wallet.type,
+            accountNumber: wallet.accountNumber,
+            accountTitle: wallet.accountTitle,
+            isDefault: false,
+            otherWalletName: wallet.type === 'other' ? wallet.otherWalletName : undefined
+          })),
+          commissionBalance: 0,
+          totalCommissions: 0,
+          totalPayouts: 0,
+          commissionHistory: [],
+          orders: []
         });
       }
 
@@ -502,8 +531,11 @@ const SignUp = () => {
                     <p className="mt-1 text-sm text-red-600">{errors.nationalID}</p>
                   )}
                 </div>
+              </>
+            )}
 
-                {/* Bank Accounts Section */}
+            {/* Bank Accounts Section - Show for both seller and admin */}
+            {(formData.role === 'seller' || formData.role === 'admin') && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-gray-900">Bank Accounts</h3>
                   
@@ -600,8 +632,10 @@ const SignUp = () => {
                     </div>
                   )}
                 </div>
+            )}
 
-                {/* Wallets Section */}
+            {/* Wallets Section - Show for both seller and admin */}
+            {(formData.role === 'seller' || formData.role === 'admin') && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium text-gray-900">Wallets</h3>
                   
@@ -687,11 +721,11 @@ const SignUp = () => {
                     </div>
                   )}
                 </div>
+            )}
 
-                {errors.paymentMethods && (
+            {/* Payment Methods Error - Show for both seller and admin */}
+            {(formData.role === 'seller' || formData.role === 'admin') && errors.paymentMethods && (
                   <p className="mt-1 text-sm text-red-600">{errors.paymentMethods}</p>
-                )}
-              </>
             )}
 
             <div>

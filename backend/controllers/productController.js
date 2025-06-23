@@ -3,6 +3,13 @@ import Seller from "../models/Seller.js";
 
 // Create a new product
 export const createProduct = async (req, res) => {
+  console.log("=== CREATE PRODUCT ENDPOINT HIT ===");
+  console.log("Request method:", req.method);
+  console.log("Request URL:", req.url);
+  console.log("Request headers:", req.headers);
+  console.log("Request body:", req.body);
+  console.log("User from middleware:", req.user);
+
   try {
     console.log("Received product creation request:", {
       body: req.body,

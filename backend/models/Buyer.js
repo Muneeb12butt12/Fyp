@@ -48,6 +48,12 @@ const buyerSchema = new mongoose.Schema({
     default: "buyer",
     enum: ["buyer"],
   },
+  orders: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+    },
+  ],
   createdAt: {
     type: Date,
     default: Date.now,
